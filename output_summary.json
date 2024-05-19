@@ -1,0 +1,73 @@
+File: DBManager.java
+- The file contains a class named `DBManager` that manages user data stored in a HashMap.
+- The class has methods to load user data from a file, check user credentials, and retrieve all users.
+- It uses the Google Gson library to parse JSON data from a file into a list of users.
+- The class has an inner class named `User` to represent individual user objects with email and password attributes.
+
+
+File: HashingUtils.java
+- The `HashingUtils` class provides a method for hashing a given input string using the SHA-256 algorithm.
+- The class uses the `MessageDigest` class from `java.security` for hashing and handles `NoSuchAlgorithmException`.
+- It includes a private method `bytesToHex` for converting the hashed bytes into a hexadecimal string representation.
+- Overall, the class focuses on providing a utility for generating SHA-256 hashes of input strings.
+
+
+File: LoginService.java
+- The `LoginService` class has a dependency on `DBManager`.
+- The class provides a `login` method that takes an email and password as parameters, hashes the password using SHA-256 algorithm, and then checks the credentials against the database using the `dbManager`.
+- The hashed password is printed to the console before the credentials are checked.
+
+
+File: Main.java
+- The Main class in this file demonstrates loading user data from a JSON file, performing a login process, and generating a report.
+- It uses a DBManager to manage user data and a LoginService to handle user login functionality.
+- After a successful login, a report is generated in PDF format, listing all users along with their email and password information.
+- The report generation involves calculating a hash for the report file.
+- Exceptions related to document generation, IO operations, and cryptographic algorithms are caught and handled accordingly.
+
+
+File: Report.java
+- The `Report` class contains a method `generatePDFAndHash` that generates a PDF document using user-provided data, writes it to a file, and computes a SHA-1 hash of the PDF data.
+- The method handles `DocumentException`, `IOException`, and `NoSuchAlgorithmException`.
+- The PDF document is created using iText library.
+- The computed hash can be optionally written to a separate file or included in the PDF document.
+- The `computeHash` method calculates the SHA-1 hash of the input data using `MessageDigest`.
+
+
+File: DBManager.java
+- The DBManager class manages a database of users with their email and password information.
+- It uses Gson library to parse a JSON file into a list of User objects and populates the users map with email-password pairs.
+- The loadUsers method reads user data from a file and stores it in the map.
+- The class provides methods to check user credentials and retrieve all users as a list of User objects.
+- The User class represents a user with email and password fields.
+
+
+File: HashingUtils.java
+- The `HashingUtils` class provides a method `hashSHA256` for generating SHA-256 hash values for input strings.
+- It uses `MessageDigest` from `java.security` to perform the hashing operation.
+- If the specified hashing algorithm ("SHA-1" in this case) is not found, the method catches a `NoSuchAlgorithmException` and returns `null`.
+- There is a private utility method `bytesToHex` used to convert the hashed bytes to a hexadecimal string representation.
+
+
+File: LoginService.java
+Summary:
+- The `LoginService` class manages user login functionality by hashing passwords using SHA-256 and verifying credentials using a `DBManager` object.
+
+Functionality:
+1. Contains a constructor that initializes the class with a `DBManager` object.
+2. Defines a `login` method that hashes the password using SHA-256, verifies the user's credentials by checking against the database using the `DBManager`, and returns a boolean indicating the login success.
+
+
+File: Main.java
+- The Main class includes a main method that demonstrates user login functionality and generates a report.
+- It loads user data from a JSON file using a DBManager object.
+- It then uses a LoginService object to attempt a login with a specified username and password.
+- A report is generated listing all users and their information, with the hash calculated.
+- If the login is successful, a PDF report is generated and its hash is calculated using the iText library.
+- Exceptions for DocumentException, IOException, and NoSuchAlgorithmException are caught and printed if they occur during the report generation process.
+
+
+File: Report.java
+This Java file contains a class named Report that generates a PDF document and computes a hash value for the document content. The generatePDFAndHash method takes a filename and a list of user data, creates a PDF document with the user data, writes the PDF to a file, computes the SHA-1 hash of the PDF data, and optionally saves the hash to a separate file. The computeHash method calculates the SHA-1 hash of a byte array. The code uses iTextPDF for PDF manipulation and MessageDigest for hashing.
+
+

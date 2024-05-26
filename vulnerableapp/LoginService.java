@@ -8,6 +8,7 @@ public class LoginService {
     public boolean login(String email, String password) {
         String hashedPassword = HashingUtils.hashSHA256(password);
         System.out.println(hashedPassword);
+        
         return dbManager.checkCredentials(email, hashedPassword);
     }
 }

@@ -7,7 +7,11 @@ from openai import OpenAI
 from datetime import datetime as dt
 import argparse
 import javalang
+import re
+
 import tests
+from objects import JavaFile, JavaClass, JavaMethod, Position
+from utils import get_method_signature_tostr, encode_java_files_to_json
 
 def cluster(source_folder):
     pass
@@ -16,6 +20,18 @@ def scan(source_folder):
     scanner = MobSFScan([source_folder], json=True)
     return scanner.scan()
 
+def parse_method_calls_REGEX(method_body):
+    code = method_body.split(";")
+   
+   # The following regex returns all unqualified calls (i.e. calls without the class or instance  name) in the code. Will match contructor calls as well.
+    method_call_pattern = re.compile(r'(?!\bif\b|\bfor\b|\bwhile\b|\bswitch\b|\btry\b|\bcatch\b|\bsealed\b|\bnon-sealed\b)(\b[\w]+\b)[\s\n\r]*(?=\(.*\))')
+
+    method_calls = []
+    for line in code:
+        matches = method_call_pattern.findall(line)
+        method_calls.extend(matches)
+        
+    return method_calls
 
 def parse_method_calls_LLM(method_body, openai_client, model="gpt-3.5-turbo"):
     system_message = """
@@ -53,9 +69,6 @@ hexString.append
         
         if response.choices[0].message.content != "None":
             calls.append(response.choices[0].message.content)
-            
-        print("User", line)
-        print("Assistant", response.choices[0].message.content)
 
     return calls
 
@@ -80,66 +93,47 @@ The summary should be a high-level overview of the file's purpose and functional
     )
     return response.choices[0].message.content
     
-def get_method_signature_tostr(node):
-    signature = ""
-    if node.return_type:
-        signature += node.return_type.name + " "
-    else:
-        signature += "void "
-        
-    signature += node.name + "("
-    
-    for i, param in enumerate(node.parameters):
-        signature += param.type.name + " " + param.name
-        if i < len(node.parameters) - 1:
-            signature += ", "
-            
-    signature += ")"
-    
-    return signature
 
-def isPositionWithinMethod(mobsf_position, mobsf_lines, method):
-    # TODO Check if the position is within the method. Use this function to summarize only methods that contain vulnerabilities
-    pass
+def is_position_within_method(mobsf_position, mobsf_lines, method):
+    if mobsf_lines[0] == mobsf_lines[1]: # if the detected vulnerability is on one line
+        if method.start_line < mobsf_lines[0] and method.end_line > mobsf_lines[0]: # if the vulnerability is strictly within the method
+            return True
+        elif method.start_line == mobsf_lines[0] or method.end_line == mobsf_lines[0]: # if the vulnerability is on the first or last line of the method
+            if method.start_col <= mobsf_position[0] and method.end_col >= mobsf_position[1]: # if the vulnerability is strictly within the method
+                return True
+    else:
+        if method.start_line <= mobsf_lines[0] and method.end_line >= mobsf_lines[1]:
+            return True
+        elif method.start_line == mobsf_lines[0] or method.end_line == mobsf_lines[1]:
+            if method.start_line == mobsf_lines[0] and method.start_col <= mobsf_position[0]:
+                return True
+    return False
+    # TODO Check if the position is within the method. Use this function to summarize only methods that contain vulnerabilities - Make tests
 
 
 def extract_and_summarize(java_code: str, openai_client: str, include_summary=True):
     tree = javalang.parse.parse(java_code)
-    methods = []
     class_stack = []
     
-    obj = {}
-    obj["classes"] = []
+    classes = []
     
     java_code = java_code.splitlines()
 
     # Traverse the AST and keep track of class contexts
     for path, node in tree:
         if isinstance(node, javalang.tree.ClassDeclaration):
-            class_stack.append(node.name)
-            print()
-            print(f"Class: {node.name}")
-            
+            class_stack.append(node.name)            
             
             code, end_line, end_col = extract_java_methods_body(java_code, node.position.line, node.position.column)
             code = "\n".join(code)
-            position = {
-                "start_line": node.position.line,
-                "end_line": end_line,
-                "start_col": node.position.column,
-                "end_col": end_col
-            }
+            pos = Position(node.position.line, end_line, node.position.column, end_col)
             
             summary = ""
             if include_summary:
                 summary = summarize(code, openai_client)
                 
-            obj["classes"].append({"name": node.name, 
-                                   "position": position, 
-                                   "code": code,
-                                   "summary": summary,
-                                   "methods": []
-                                   })
+            classes.append(JavaClass(node.name, pos, code, summary))
+            
         elif isinstance(node, javalang.tree.MethodDeclaration):
             current_class = class_stack[-1] if class_stack else None
             
@@ -155,40 +149,34 @@ def extract_and_summarize(java_code: str, openai_client: str, include_summary=Tr
             summary = ""
             if include_summary:
                 summary = summarize(code, openai_client)
-                
-            if current_class == obj["classes"][-1]["name"]:
-                print(get_method_signature_tostr(node))
-                obj["classes"][-1]["methods"].append({"name": node.name, 
-                                                      "signature": get_method_signature_tostr(node),
-                                                      "position": position, 
-                                                      "code": code,
-                                                      "summary": summary
-                                                      })
-            else:
-                for c in obj["classes"]:
-                    if c["name"] == current_class:
-                        c["methods"].append({"name": node.name, 
-                                             "signature": get_method_signature_tostr(node),
-                                             "position": position, 
-                                             "code": code,
-                                             "summary": summary
-                                             })
-                        break
                     
-    #         print(get_method_signature_tostr(node))
-    #         methods.append((current_class, node.position.line, node))
-
-    # method_bodies = []
-    # lines = java_code.splitlines()
-
-    # for current_class, start_line, method in methods:
-        
-    #     method_code = extract_java_methods_body(lines, start_line, method.position.column)
-        
-    #     method_bodies.append((current_class, method.name, "\n".join(method_code)))
-
-    # return method_bodies
-    return obj
+            current_return_type = "void"
+            if node.return_type:
+                current_return_type = node.return_type.name
+                
+            if current_class == classes[-1].name:
+                classes[-1].add_new_method(
+                    node.name, 
+                    current_return_type, 
+                    [{"name": param.name, "type": param.type.name} for param in node.parameters],
+                    Position(node.position.line, end_line, node.position.column, end_col),
+                    code, 
+                    summary
+                )
+                
+            else:
+                for c in classes:
+                    if c.name == current_class:
+                        c.add_new_method(
+                            node.name, 
+                            current_return_type, 
+                            [{"name": param.name, "type": param.type.name} for param in node.parameters],
+                            Position(node.position.line, end_line, node.position.column, end_col), 
+                            code, 
+                            summary
+                        )
+                        break    
+    return classes
             
             
 def extract_java_methods_body(lines, start_line, start_col):
@@ -285,7 +273,7 @@ def run(overriding_dir=None):
     scan_result = scan(args.dir)
     print(f"[{dt.now().strftime('%H:%M:%S')}] Done.")
     
-    obj = []
+    file_objects = []
     for file in os.listdir(directory): # only scans the base directory
         full_path = os.path.join(directory, file)
         if file.endswith(".java"):
@@ -295,71 +283,24 @@ def run(overriding_dir=None):
             with open(full_path, "r") as f:
                 java_code = f.read()
             
-            current_obj = extract_and_summarize(java_code, openai_client, include_summary=False)
+            current_classes = extract_and_summarize(java_code, openai_client, include_summary=False)
     
-            obj.append({
-                "file": full_path,
-                "code": java_code,
-                "classes": current_obj["classes"],
-            })
+            file_objects.append(JavaFile(full_path, java_code, current_classes))
     
-    with open("output_obj.json", "w") as f:
+    with open("output_scan.json", "w") as f:
         f.write(json.dumps(scan_result))
         
-    with open("output_object.json", "w") as f:
-        f.write(json.dumps(obj))
+    with open("output_objects.json", "w") as f:
+        f.write(encode_java_files_to_json(file_objects))
 
+    # cluster_fan_out = cluster(obj)
+    
 
 if __name__ == '__main__':
-    # run(overriding_dir="vulnerableapp")
     openai._utils._logs.logger.setLevel(logging.WARNING)
     openai._utils._logs.httpx_logger.setLevel(logging.WARNING)
     
-    parser = argparse.ArgumentParser(description='Scan and summarize Java files for vulnerabilities.')
-    parser.add_argument('--dir', type=str, required=True, help='Directory to scan')
-    parser.add_argument('--api-key', type=str, required=True, help='OpenAI API key')
-    args = parser.parse_args()
+    run(overriding_dir="vulnerableapp")
     
-    method_code = """
-private String computeHash(byte[] data) throws NoSuchAlgorithmException {
-    MessageDigest digest = MessageDigest.getInstance("SHA-1");
-    byte[] encodedhash = digest.digest(data);
-    StringBuilder hexString = new StringBuilder(2 * encodedhash.length);
-    for (byte b : encodedhash) {
-        String hex = Integer.toHexString(0xff & b);
-        if(hex.length() == 1) hexString.append('0');
-        hexString.append(hex);
-    }
-    return hexString.toString();
-}
-    """
-    
-    calls = parse_method_calls_LLM(method_code, OpenAI(api_key=args.api_key))
-    
-    for call in calls:
-        print(call)
-    
-    # parser = argparse.ArgumentParser(description='Scan and summarize Java files for vulnerabilities.')
-    # parser.add_argument('--api-key', type=str, required=True, help='OpenAI API key')
-    # args = parser.parse_args()
-    
-    # openai_client = OpenAI(api_key=args.api_key)
-    
-    # with open("vulnerableapp/DBManager.java", 'r') as f:
-    #     java_code = f.read()
-        
-    # file_obj = extract_and_summarize(java_code, openai_client, include_summary=False)
-    # print(file_obj) 
-    # obj = []
-    # obj.append({
-    #     "file": "vulnerableapp/DBManager.java",
-    #     "code": java_code,
-    #     "classes": file_obj["classes"],
-    # })
-    
-    # with open("output_object.json", "w") as f:
-    #     f.write(json.dumps(obj))
-        
-    #tests.test_extract_java_methods()
-    
+    tests.test_all()
     

@@ -1,3 +1,7 @@
+/*
+This file is used to test the python code parser. Do not modify it.
+*/
+
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import java.io.FileReader;

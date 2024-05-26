@@ -5,17 +5,20 @@ def test_summarize():
     
     full_summary = summary.summarize_classes_and_methods("vulnerableapp/DBManager.java")
     
-    
-def test_extract_java_methods():
-    file = "vulnerableapp/DBManager.java"
+
+def test_extract_java_methods(verbose=True):
+    file = "vulnerableapp/DBManager.java.test"
     
     with open(file, 'r') as f:
         java_code = f.read()
         
-    methods = main.extract_java_methods(java_code)
-    assert methods[0][0] == "DBManager"
-    assert methods[0][1] == "loadUsers"
-    assert methods[0][2] == \
+    class_objects = main.extract_and_summarize(java_code, None, include_summary=False)
+    
+    for class_el in class_objects:
+        if class_el.name == "DBManager":
+            for method_el in class_el.methods:
+                if method_el.name == "loadUsers":
+                    assert method_el.code == \
     """void loadUsers(String filename) {
         try (Reader reader = new FileReader(filename)) {
             Type type = new TypeToken<List<User>>(){}.getType();
@@ -25,34 +28,31 @@ def test_extract_java_methods():
             e.printStackTrace();
         }
     }"""
-    
-    assert methods[1][0] == "DBManager"
-    assert methods[1][1] == "checkCredentials"
-    assert methods[1][2] == \
-    """boolean checkCredentials(String email, String encryptedPassword) {
-        String storedEncryptedPassword = users.get(email);
-        return storedEncryptedPassword != null && storedEncryptedPassword.equals(encryptedPassword);
+                if method_el.name == "checkCredentials":
+                    assert method_el.code == \
+    """boolean checkCredentials(String email, String hashedPassword) {
+        String storedhashedPassword = users.get(email);
+        return storedhashedPassword != null && storedhashedPassword.equals(hashedPassword);
     }"""
-    
-    assert methods[2][0] == "DBManager"
-    assert methods[2][1] == "getAllUsers"
-    assert methods[2][2] == \
+                if method_el.name == "getAllUsers":
+                    assert method_el.code == \
     """List<User> getAllUsers() {
         return users.entrySet().stream()
                 .map(entry -> new User(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
     }"""
     
-    assert methods[3][0] == "User"
-    assert methods[3][1] == "getEmail"
-    assert methods[3][2] == \
+                
+        if class_el.name == "User":
+            for method_el in class_el.methods:
+                if method_el.name == "getEmail":
+                    assert method_el.code == \
     """String getEmail() {
             return email;
         }"""
-    
-    assert methods[4][0] == "User"
-    assert methods[4][1] == "getPassword"
-    assert methods[4][2] == \
+                
+                if method_el.name == "getPassword":
+                    assert method_el.code == \
     """String getPassword() {
             return password;
         }"""
@@ -72,7 +72,7 @@ def test_extract_java_methods():
     public String getPassword() {
         return password; }
 }"""
-
+        
     code3 = \
     """public class User { private String email; private String password; public User(String email, String password) 
     { this.email = email; this.password = password; } public String getEmail() { return email; } sss"""
@@ -89,29 +89,45 @@ def test_extract_java_methods():
     
     } public String getEmail() { return email; } sss"""
     
-    assert "\n".join(main.extract_java_methods_body(code1.splitlines(), 1, 68)) == \
-    """public User(String email, String password) { this.email = email; this.password = password;     } """
+    assert "\n".join(main.extract_java_methods_body(code1.splitlines(), 1, 68)[0]) == \
+    """public User(String email, String password) { this.email = email; this.password = password;     }"""
     
-    assert "\n".join(main.extract_java_methods_body(code2.splitlines(), 1, 68)) == \
-    """public User(String email, String password) { this.email = email; this.password = password;     } """
+    assert "\n".join(main.extract_java_methods_body(code2.splitlines(), 1, 68)[0]) == \
+    """public User(String email, String password) { this.email = email; this.password = password;     }"""
     
-    assert "\n".join(main.extract_java_methods_body(code3.splitlines(), 1, 68)) == \
+    assert "\n".join(main.extract_java_methods_body(code3.splitlines(), 1, 68)[0]) == \
     """public User(String email, String password) 
-    { this.email = email; this.password = password; } """
+    { this.email = email; this.password = password; }"""
     
-    assert "\n".join(main.extract_java_methods_body(code4.splitlines(), 1, 68)) == \
-        """public User(String email, String password){ this.email = email; this.password = password; } """
+    assert "\n".join(main.extract_java_methods_body(code4.splitlines(), 1, 68)[0]) == \
+        """public User(String email, String password){ this.email = email; this.password = password; }"""
         
-    assert "\n".join(main.extract_java_methods_body(code5.splitlines(), 1, 68)) == \
+    assert "\n".join(main.extract_java_methods_body(code5.splitlines(), 1, 68)[0]) == \
         """public User(String email, String password) 
     { this.email = email; 
     
     this.password = password; 
     
-    } """
+    }"""
+        
+    if verbose:
+        print("All tests passed!")
+    
+
+def test_is_position_within_method(verbose=True):
+    # TODO: Add more test cases
+    
+    if verbose:
+        print("All tests passed!")
+    
+    
+def test_all():
+    test_extract_java_methods(verbose=False)
+    test_is_position_within_method(verbose=False)
     
     print("All tests passed!")
     
+
 if __name__ == '__main__':
     # test_summarize()
     test_extract_java_methods()

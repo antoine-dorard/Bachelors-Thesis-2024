@@ -37,12 +37,13 @@ class JavaParameter:
         
         
 class JavaMethod:
-    def __init__(self, name: str, return_type: str, paremeters: list, position: Position, code: str, summary="") -> None:
+    def __init__(self, parent, name: str, return_type: str, paremeters: list, position: Position, code: str, summary="") -> None:
         self.name = name
         self.return_type = return_type
         self.position = position
         self.code = code
         self.summary = summary
+        self.parent = parent
         
         self.parameters = []
         for p in paremeters:
@@ -64,7 +65,22 @@ class JavaMethod:
         }
         
     def __str__(self) -> str:
-        return "{" + f"MethodName: {self.name}, Position: {self.position}, Summary: {self.summary}" + "}"
+        # return "{" + f"MethodName: {self.name}, Position: {self.position}, Summary: {self.summary}" + "}"
+        return self.parent.name + "." + self.name
+    
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, JavaMethod):
+            return False
+        if self.name != value.name:
+            return False
+        if self.return_type != value.return_type:
+            return False
+        if self.parameters != value.parameters:
+            return False
+        return True
+    
+    def __hash__(self) -> int:
+        return hash((self.name, self.return_type, tuple(self.parameters)))
     
 class JavaClass:
     def __init__(self, name: str, position: Position, code: str, summary="") -> None:
@@ -75,7 +91,7 @@ class JavaClass:
         self.methods = []
         
     def add_new_method(self, name: str, return_type: str, paremeters: list, position: Position, code: str, summary=""):
-        self.methods.append(JavaMethod(name, return_type, paremeters, position, code, summary))
+        self.methods.append(JavaMethod(self, name, return_type, paremeters, position, code, summary))
         
     def add_method(self, method: JavaMethod):
         if not isinstance(method, JavaMethod):
@@ -104,6 +120,17 @@ class JavaClass:
     def __str__(self) -> str:
         return "{" + f"ClassName: {self.name}, Position: {self.position}, Summary: {self.summary}, Methods: {self.methods}" + "}"
     
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, JavaClass):
+            return False
+        if self.name != value.name:
+            return False
+        if self.methods != value.methods:
+            return False
+        return True
+    
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.methods)))
     
 class JavaFile:
     def __init__(self, path: str, code: str, classes: list) -> None:

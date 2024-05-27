@@ -8,19 +8,67 @@ from datetime import datetime as dt
 import argparse
 import javalang
 import re
+import networkx as nx
+import matplotlib.pyplot as plt
+import community as community_louvain
 
 import tests
 from objects import JavaFile, JavaClass, JavaMethod, Position
 from utils import get_method_signature_tostr, encode_java_files_to_json
 
-def cluster(source_folder):
-    pass
+def cluster(file_objects_list):
+    # Cluster the files based on the method calls
+    
+    G = nx.Graph()
+    
+    for file1 in file_objects_list:
+        for java_class1 in file1.classes:
+            for method1 in java_class1.methods:
+                
+                parsed_calls = parse_method_calls_REGEX(method1.code)
+                
+                for file2 in file_objects_list:
+                    for java_class2 in file2.classes:
+                        for method2 in java_class2.methods:
+                            if method1 == method2:
+                                continue
+                            
+                            if not G.has_edge(method1, method2):
+                                G.add_edge(method1, method2)
+                                G[method1][method2]["calls"] = 0
+                            
+                            if method2.name in parsed_calls:
+                                count = parsed_calls.count(method2.name)
+                                G[method1][method2]["calls"] += count
+                                
+                                
+    # print edges and their value
+    # for edge in G.edges():
+    #     print(f"{edge[0].parent.name}.{edge[0].name} - {edge[1].parent.name}.{edge[1].name}: {G[edge[0]][edge[1]]['calls']}")
+    
+    for edge in G.edges():
+        if G[edge[0]][edge[1]]['calls'] <= 0:
+            G.remove_edge(edge[0], edge[1])
+            
+    partition = community_louvain.best_partition(G.to_undirected())
+
+    # Visualize the communities
+    # pos = nx.spring_layout(G)
+    # cmap = plt.get_cmap('viridis', max(partition.values()) + 1)
+    # nx.draw_networkx_nodes(G, pos, partition.keys(), node_size=2000, cmap=cmap, node_color=list(partition.values()))
+    # nx.draw_networkx_edges(G, pos, alpha=0.5)
+    # nx.draw_networkx_labels(G, pos)
+    # plt.savefig("graph.png")
+        
+    return partition
+                            
+                            
 
 def scan(source_folder):
     scanner = MobSFScan([source_folder], json=True)
     return scanner.scan()
 
-def parse_method_calls_REGEX(method_body):
+def parse_method_calls_REGEX(method_body) -> list[str]:
     code = method_body.split(";")
    
    # The following regex returns all unqualified calls (i.e. calls without the class or instance  name) in the code. Will match contructor calls as well.
@@ -254,7 +302,7 @@ def extract_java_methods_body(lines, start_line, start_col):
     
     raise Exception("No closing brace found")
     
-def run(overriding_dir=None):
+def run(overriding_dir=None, scan=True):
     # get api key of LLM model (currently @ openai) and directory to scan
     parser = argparse.ArgumentParser(description='Scan and summarize Java files for vulnerabilities.')
     parser.add_argument('--dir', type=str, required=True, help='Directory to scan')
@@ -269,9 +317,10 @@ def run(overriding_dir=None):
     else:
         directory = args.dir
     
-    print(f"[{dt.now().strftime('%H:%M:%S')}] Scanning for vulnerabilities...")
-    scan_result = scan(args.dir)
-    print(f"[{dt.now().strftime('%H:%M:%S')}] Done.")
+    if scan:
+        print(f"[{dt.now().strftime('%H:%M:%S')}] Scanning for vulnerabilities...")
+        scan_result = scan(args.dir)
+        print(f"[{dt.now().strftime('%H:%M:%S')}] Done.")
     
     file_objects = []
     for file in os.listdir(directory): # only scans the base directory
@@ -287,20 +336,21 @@ def run(overriding_dir=None):
     
             file_objects.append(JavaFile(full_path, java_code, current_classes))
     
-    with open("output_scan.json", "w") as f:
-        f.write(json.dumps(scan_result))
+    if scan:
+        with open("output_scan.json", "w") as f:
+            f.write(json.dumps(scan_result))
         
     with open("output_objects.json", "w") as f:
         f.write(encode_java_files_to_json(file_objects))
 
-    # cluster_fan_out = cluster(obj)
+    cluster_fan_out = cluster(file_objects)
     
 
 if __name__ == '__main__':
     openai._utils._logs.logger.setLevel(logging.WARNING)
     openai._utils._logs.httpx_logger.setLevel(logging.WARNING)
     
-    run(overriding_dir="vulnerableapp")
+    run(overriding_dir="vulnerableapp", scan=False)
     
     tests.test_all()
     

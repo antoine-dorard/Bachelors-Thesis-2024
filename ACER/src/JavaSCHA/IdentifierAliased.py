@@ -1,5 +1,5 @@
 from tree_sitter import Node
-from src.tree_sitter_utils import find_all_children_of_type, find_closest_ancestor_of_type, get_deepest_children
+from ..tree_sitter_utils import find_all_children_of_type, find_closest_ancestor_of_type, get_deepest_children
 from ..shared import JavaGrammarKeywords
 
 class JavaIdentifierTypeResolver():

@@ -1,8 +1,32 @@
-# Project Specific
+# -- Project Specific -- 
 damnvulnerablebank/
 /*.json
 tmp/
 
+# -- ACER --
+ACER/*.pyc
+
+# after build, my-languages.so is generated, but that should only come from build
+*.so 
+ACER/vendor/
+
+# Actually allow for .vscode/settings.json for python testing config file to be shared
+.vscode 
+!.vscode/settings.json
+
+# Don't upload output results
+ACER/output/*
+
+# vscode's latex plugin produces many junk files that start with `paper.`, ignore those.
+# But, include paper.pdf and paper.tex, of course.
+ACER/paper.*
+!paper.pdf
+!paper.tex
+
+*.class
+ACER/evaluations/jdk7 
+
+# --  DEFAULTS --
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

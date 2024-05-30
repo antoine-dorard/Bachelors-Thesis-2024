@@ -1,10 +1,4 @@
-import main
-
-def test_summarize():
-    summary = main.Summary(api_key="a")
-    
-    full_summary = summary.summarize_classes_and_methods("vulnerableapp/DBManager.java")
-    
+from parsing.parsing import extract_classes_and_methods, extract_java_methods_body
 
 def test_extract_java_methods(verbose=True):
     file = "vulnerableapp/DBManager.java.test"
@@ -12,7 +6,7 @@ def test_extract_java_methods(verbose=True):
     with open(file, 'r') as f:
         java_code = f.read()
         
-    class_objects = main.extract_and_summarize(java_code, None, include_summary=False)
+    class_objects = extract_classes_and_methods(java_code)
     
     for class_el in class_objects:
         if class_el.name == "DBManager":
@@ -89,20 +83,20 @@ def test_extract_java_methods(verbose=True):
     
     } public String getEmail() { return email; } sss"""
     
-    assert "\n".join(main.extract_java_methods_body(code1.splitlines(), 1, 68)[0]) == \
+    assert "\n".join(extract_java_methods_body(code1.splitlines(), 1, 68)[0]) == \
     """public User(String email, String password) { this.email = email; this.password = password;     }"""
     
-    assert "\n".join(main.extract_java_methods_body(code2.splitlines(), 1, 68)[0]) == \
+    assert "\n".join(extract_java_methods_body(code2.splitlines(), 1, 68)[0]) == \
     """public User(String email, String password) { this.email = email; this.password = password;     }"""
     
-    assert "\n".join(main.extract_java_methods_body(code3.splitlines(), 1, 68)[0]) == \
+    assert "\n".join(extract_java_methods_body(code3.splitlines(), 1, 68)[0]) == \
     """public User(String email, String password) 
     { this.email = email; this.password = password; }"""
     
-    assert "\n".join(main.extract_java_methods_body(code4.splitlines(), 1, 68)[0]) == \
+    assert "\n".join(extract_java_methods_body(code4.splitlines(), 1, 68)[0]) == \
         """public User(String email, String password){ this.email = email; this.password = password; }"""
         
-    assert "\n".join(main.extract_java_methods_body(code5.splitlines(), 1, 68)[0]) == \
+    assert "\n".join(extract_java_methods_body(code5.splitlines(), 1, 68)[0]) == \
         """public User(String email, String password) 
     { this.email = email; 
     

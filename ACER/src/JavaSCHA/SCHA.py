@@ -1,18 +1,3 @@
-'''
-Code from: https://github.com/WM-SEMERU/ACER/blob/master/examples/Java/JavaSCHA/SCHA.py
----
-
-SCHA (Simple Class Hierarchy Analysis) and SCHA from entry. 
-SCHA won't be found in the literature since I came up with it. It's unique to source-level callgraph analysis.
-It is simple in that classes are verified by only their shorthand. This is sounds since it over-estimates. 
-
-For example, for a call_site like `a.b()`, where `a` turns out to be a `foo.MyClass`, the call_site is 
-considered to be executing `MyClass.b` (not `foo.MyClass.b`). This can save significant preprocessing time — 
-which you can observe by inspecting the difference of SCHA and CHA.
-
-SCHA is strictly sounder than NR, since, NR actually doesn't consider inherited methods.
-'''
-
 import argparse
 from collections import defaultdict
 from dataclasses import dataclass
@@ -28,23 +13,7 @@ from .IdentifierAliased import JavaIdentifierTypeResolver
 from acer import MethodDictValue, Preprocessor, TraversalMethod, logging_levels
 from ..shared import FullType, MethodKey, count_args, get_contained_by, get_files, get_package_name, JavaGrammarKeywords, group_by_type_capture_up_to_depth
 from acer import Generator, PreprocessResult, Preprocessor
-from src.tree_sitter_utils import find_all_ancestors_of_types, find_all_children_of_types, find_first_child_of_type
-
-parser = argparse.ArgumentParser(description="Script to handle fallback and output file arguments")
-
-# Adding the 'fallback' argument
-parser.add_argument('--fallback', dest='fallback', action='store_true',
-                    help='whether or not to fall back to NR. Default is False.')
-parser.add_argument('--no-fallback', dest='fallback', action='store_false')
-parser.set_defaults(fallback=False)
-parser.add_argument('-o', '--output_path', type=str, required=True,
-                    help='The path of the file to write to')
-parser.add_argument('input_dir', type=str, help='The path of the directory to analyze')
-parser.add_argument('--only_variable_identifier', dest="only_variable_identifier", action='store_true', help='Only analyze variable identifier receivers')
-parser.add_argument('--from-all', dest='from_all', action='store_true', default=False,
-                    help='If true, analyze from all methods. Else, start from all methods named "main".')
-
-args = parser.parse_args()
+from ..tree_sitter_utils import find_all_ancestors_of_types, find_all_children_of_types, find_first_child_of_type
 
 @dataclass 
 class HierarchyValue():
@@ -63,7 +32,6 @@ class AlmostKey(NamedTuple):
     contained_by: FullType
     method_name: str 
     method_params_count: int
-
 
 @dataclass
 class SCHAPreprocessResult(PreprocessResult[MethodKey, AlmostKey, MyMethodDictValue]): 
@@ -250,12 +218,14 @@ class Metric():
     object_creation_expression_edges: int
 
 class SCHAGenerator(Generator[MethodKey, AlmostKey, MyMethodDictValue]):
-    def __init__(self, preprocessor: Preprocessor[MethodKey, AlmostKey, MyMethodDictValue], call_site_types: List[str] = ..., caller_types: List[str] = ..., logging_level: logging_levels = "INFO", traversal_method: TraversalMethod = "BFS") -> None:
+    def __init__(self, preprocessor: Preprocessor[MethodKey, AlmostKey, MyMethodDictValue], call_site_types: List[str] = ..., caller_types: List[str] = ..., logging_level: logging_levels = "INFO", traversal_method: TraversalMethod = "BFS", fallback=False, only_variable_identifier=False) -> None:
         super().__init__(preprocessor, call_site_types, caller_types, logging_level, traversal_method)
         self.metrics = Metric(0, 0, 0, 0)
+        self.fallback = fallback
+        self.only_variable_identifier = only_variable_identifier
+
     def _seek_call_sites(self, caller: Node):
         return [(None, v) for v in find_all_children_of_types(caller, {"method_invocation", "object_creation_expression"})]
-
 
     def _resolve_call_site(self, call_site: Node, caller_key: MethodKey | None = None) -> Tuple[List[AlmostKey], List[MethodKey]]:
         self.preprocessor: SCHAPreprocessor # For type-checking purposes
@@ -273,7 +243,7 @@ class SCHAGenerator(Generator[MethodKey, AlmostKey, MyMethodDictValue]):
                 n_args = count_args(method_arguments)
                 if method_caller:
                     if method_caller.type == "identifier": # a.b() | Suppose that "a" is instance of class A and that B, C inherit from A.
-                        caller_shorthand_type = JavaIdentifierTypeResolver().resolve(method_caller, args.only_variable_identifier) # A
+                        caller_shorthand_type = JavaIdentifierTypeResolver().resolve(method_caller, self.only_variable_identifier) # A
                         subtypes = get_subtypes(caller_shorthand_type, models_cache) # B, C
                         class_types = get_full([caller_shorthand_type, *subtypes], models_cache) # [(_._.A), (_._.B), (_._.C)]
                     else: 
@@ -282,7 +252,7 @@ class SCHAGenerator(Generator[MethodKey, AlmostKey, MyMethodDictValue]):
                         nr_keys = self.preprocessorResults.nr_unique_dict.get((method_name, n_args), [])
                         self.metrics.edges_from_nr_fallback += len(nr_keys)
                         self.metrics.method_invocation_edges += len(nr_keys)
-                        if args.fallback:
+                        if self.fallback:
                             return ([], nr_keys)
                         else: 
                             return ([], [])
@@ -325,22 +295,38 @@ def calc_entry_points(preprocessResult: PreprocessResult[MethodKey, AlmostKey, M
     return list(reduce(lambda acc, cur: [cur, *acc] if cur.method_name == "main" else acc, preprocessResult.method_dict.keys(), empty))
 
 
-if __name__ == "__main__":
-    pre = SCHAPreprocessor("build/my-languages.so", 'java')
-    # logging.info("yoo")
-
-    # Testing on test/repos/guava-retrying
-    # files = get_files("test/repos/guava-retrying", re.compile(r'\.java$'))
-    # file = "src/new_framework/examples/JavaSCHA/test.java"
-    generator = SCHAGenerator(pre, call_site_types, caller_types)
-    res = generator.generate(get_files(args.input_dir, include_pat=re.compile(r'\.java$')), lambda p: list(p.method_dict.keys()) if args.from_all else [k for k in p.method_dict if k.method_name=="main"])
+def main(input_dir, output_path=None, fallback=False, only_variable_identifier=False, from_all=False):
+    pre = SCHAPreprocessor("ACER/build/my-languages.so", 'java')
+    generator = SCHAGenerator(pre, call_site_types, caller_types, fallback=fallback, only_variable_identifier=only_variable_identifier)
+    res = generator.generate(get_files(input_dir, include_pat=re.compile(r'\.java$')), lambda p: list(p.method_dict.keys()) if from_all else [k for k in p.method_dict if k.method_name=="main"])
     
     big_print_str = ""
     for from_, tos in res.items():
         from_str = str(from_)
         for to in tos:
             big_print_str += f"{from_str}->{str(to)}\n" 
-    with open(args.output_path, "w") as wf: 
-        wf.write(big_print_str) 
-    # print("total edges:", sum(len(edges) for edges in res.values()))
-    # pprint(generator.metrics)
+            
+    if output_path:
+        with open(output_path, "w") as wf: 
+            wf.write(big_print_str) 
+        
+    return res
+
+if __name__ == "__main__":
+    # Define the command-line arguments
+    parser = argparse.ArgumentParser(description="Script to handle fallback and output file arguments")
+
+    # Adding the 'fallback' argument
+    parser.add_argument('--fallback', dest='fallback', action='store_true', help='whether or not to fall back to NR. Default is False.')
+    parser.add_argument('--no-fallback', dest='fallback', action='store_false')
+    parser.set_defaults(fallback=False)
+    parser.add_argument('-o', '--output_path', type=str, required=True, help='The path of the file to write to')
+    parser.add_argument('input_dir', type=str, help='The path of the directory to analyze')
+    parser.add_argument('--only_variable_identifier', dest="only_variable_identifier", action='store_true', help='Only analyze variable identifier receivers')
+    parser.add_argument('--from-all', dest='from_all', action='store_true', default=False, help='If true, analyze from all methods. Else, start from all methods named "main".')
+
+    # Parse the arguments from the command line
+    args = parser.parse_args()
+    
+    # Call the main function with the parsed arguments
+    main(args.input_dir, args.output_path, args.fallback, args.only_variable_identifier, args.from_all)

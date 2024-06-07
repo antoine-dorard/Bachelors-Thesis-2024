@@ -38,7 +38,7 @@ def visualize_community_graph(graph, partition, output_file_image):
         return
     
     plt.clf()
-    pos = nx.spring_layout(graph, scale=0.5)
+    pos = nx.spring_layout(graph)
     cmap = plt.get_cmap('viridis', max(partition.values()) + 1)
     nx.draw_networkx_nodes(graph, pos, partition.keys(), node_size=500, cmap=cmap, node_color=list(partition.values()), alpha=0.6)
     nx.draw_networkx_edges(graph, pos, alpha=0.5)

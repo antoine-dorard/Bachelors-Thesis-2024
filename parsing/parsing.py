@@ -101,7 +101,7 @@ def extract_classes_and_methods(java_code: str) -> list[JavaClass]:
             class_stack.append(node.name)            
             
             code, end_line, end_col = extract_java_methods_body(java_code, node.position.line, node.position.column)
-            code = "\n".join(code)
+            code = "\n".join(code) if code else ""
             pos = Position(node.position.line, end_line, node.position.column, end_col)
                 
             classes.append(JavaClass(node.name, pos, code))
@@ -110,23 +110,21 @@ def extract_classes_and_methods(java_code: str) -> list[JavaClass]:
             current_class = class_stack[-1] if class_stack else None
             
             code, end_line, end_col = extract_java_methods_body(java_code, node.position.line, node.position.column)
-            code = "\n".join(code)
-            position = {
-                "start_line": node.position.line,
-                "end_line": end_line,
-                "start_col": node.position.column,
-                "end_col": end_col
-            }
-                    
+            code = "\n".join(code) if code else ""
             current_return_type = "void"
             if node.return_type:
                 current_return_type = node.return_type.name
-                
+            
+            # for p in node.parameters:
+            #         print("----------------")
+            #         print(p.type)
+            #         print(get_full_param_reference(p.type))
+                    
             if current_class == classes[-1].name:
                 classes[-1].add_new_method(
                     node.name, 
                     current_return_type, 
-                    [{"name": param.name, "type": param.type.name} for param in node.parameters],
+                    [{"name": param.name, "type": get_full_param_reference(param.type)} for param in node.parameters],
                     Position(node.position.line, end_line, node.position.column, end_col),
                     code
                 )
@@ -137,7 +135,7 @@ def extract_classes_and_methods(java_code: str) -> list[JavaClass]:
                         c.add_new_method(
                             node.name, 
                             current_return_type, 
-                            [{"name": param.name, "type": param.type.name} for param in node.parameters],
+                            [{"name": param.name, "type": get_full_param_reference(param.type)} for param in node.parameters],
                             Position(node.position.line, end_line, node.position.column, end_col), 
                             code
                         )
@@ -165,8 +163,6 @@ def extract_java_methods_body(lines, start_line, start_col):
     and int: The line number where the method body ends.
     """
     
-    # TODO Check for semi colon before first opening brackets to skip if interface or abstract method declaration 
-    
     current_line_index = start_line - 1  # Adjust index to be zero-based for list access
     signature = lines[current_line_index][start_col - 1:]  # Extract the method signature starting from the given column
     lines[current_line_index] = lines[current_line_index][start_col - 1:]  # Modify the line to start from the method signature
@@ -174,8 +170,23 @@ def extract_java_methods_body(lines, start_line, start_col):
     # Check if there are braces on the current signature line
     brace_total_count = signature.count('{') + signature.count('}')
     
-    # Advance to the line containing the opening brace
+    # Advance to the line containing the opening brace and check for abstract or interface methods
     while brace_total_count == 0:
+        # Check if the line contains a semicolon before the first opening brace, indicating an abstract or interface method
+        if lines[current_line_index].count(';') != 0:
+            current_char = 0
+            is_abstract = True
+            while current_char < len(lines[current_line_index]) and lines[current_line_index][current_char] != ';':
+                if lines[current_line_index][current_char] == '{':
+                    is_abstract = False
+                    break # In this case an opening brace was found before the semicolon, so the method is not abstract or interface
+                current_char += 1
+        
+            if is_abstract:
+                warn("Method is abstract or interface. Skipping method.")
+                return (None, current_line_index + 1, 0)
+            
+        # Advance to the line containing the opening brace
         if current_line_index + 1 < len(lines):
             current_line_index += 1
         else:
@@ -184,7 +195,8 @@ def extract_java_methods_body(lines, start_line, start_col):
     
     # If no braces are found after the signature line, exit the function
     if current_line_index + 1 == len(lines) and brace_total_count == 0:
-        raise Exception("No brackets found")
+        warn("No braces found after the method signature. Skipping method.")
+        return (None, current_line_index + 1, 0)
     
     # Find the position of the first opening brace after the method signature
     current_char = 0
@@ -218,4 +230,22 @@ def extract_java_methods_body(lines, start_line, start_col):
         current_line_index += 1
         current_char = 0  # Reset character index for the new line
     
-    raise Exception("No closing brace found")
+    warn("No closing brace found")
+    return (None, current_line_index, 0)
+
+
+def get_full_param_reference(param_type: javalang.tree.MethodDeclaration):
+    """
+    Returns a parameter type of the form "java.util.List" for a parameter node.
+    """
+    if hasattr(param_type, 'sub_type') and param_type.sub_type:
+        return get_full_type_reference_recursive(param_type, "")[1:] # Remove the leading dot
+    
+    return param_type.name
+    
+def get_full_type_reference_recursive(param_type: javalang.tree.MethodDeclaration, current_str: str):
+    if param_type.sub_type is None:
+        current_str += "." + param_type.name
+        return current_str
+    else:
+        return get_full_type_reference_recursive(param_type.sub_type, current_str + "." + param_type.name)

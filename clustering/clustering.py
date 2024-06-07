@@ -22,16 +22,27 @@ class ClusteringInterface(ABC):
     def __init__(self) -> None:
         self.graph: nx.Graph = nx.empty_graph()
         self.clusters: list[Cluster] = []
+        self.unique_methods: set[JavaMethod] = set()
         
     @abstractmethod
-    def cluster(self, **kwargs) -> list[Cluster]:
+    def cluster(self, java_files, **kwargs) -> list[Cluster]:
         """
-        TODO write comment about the fact that in the pipeline the input includes a list of JavaFile objects.
+        Implement this method with the clustering algorithm of your choice. It must populate the self.clusters and 
+        self.unique_methods attributes. 
+        parameters: 
+        - java_files: list[JavaFile] - a list of JavaFile objects that contain all the parsed code.
+        - **kwargs: additional parameters that can be passed to the clustering algorithm when registering it in the pipeline.
+        returns: 
+        -> self.clusters: list[Cluster] - a list of Cluster objects that contain the methods that are part of the same cluster. 
+        Each cluster object must contain instances of JavaMethod.
         """
         pass
     
     def get_clusters(self) -> list[Cluster]:
         return self.clusters
+    
+    def get_unique_methods(self) -> set[JavaMethod]:
+        return self.unique_methods
     
         
 def convert_louvain_to_clusters(partition: dict[Union[str, JavaMethod], int]) -> list[Cluster]:
@@ -39,21 +50,26 @@ def convert_louvain_to_clusters(partition: dict[Union[str, JavaMethod], int]) ->
     Takes as input the partition dictionary from the Louvain algorithm and converts it to a list of Cluster objects.
     """
     clusters = []
-    
-    partition = {k: v for k, v in sorted(partition.items(), key=lambda item: item[1])} # Sort the partition by community
-    
-    previous_community = partition[list(partition.keys())[0]] # get the first community
-    current_cluster = Cluster([])
+    communities = set()
     
     for method, community in partition.items():
-        if previous_community == community:
-            current_cluster.add_element(method)
-        else:
-            clusters.append(current_cluster)
-            current_cluster = Cluster([])
-            
-        previous_community = community
+        communities.add(community)
+
+    for _ in range(len(communities)):
+        clusters.append(Cluster([]))
         
-    clusters.append(current_cluster)
+    for method, community in partition.items():
+        clusters[community].add_element(method)
     
     return clusters
+
+
+def convert_clusters_to_partition(clusters: list[Cluster]) -> dict:
+    """
+    Takes as input a list of Cluster objects and converts it to a partition dictionary.
+    """
+    partition = {}
+    for cluster_id, cluster in enumerate(clusters):
+        for method in cluster.get_elements():
+            partition[method] = cluster_id
+    return partition

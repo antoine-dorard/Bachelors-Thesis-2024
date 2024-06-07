@@ -68,12 +68,14 @@ class JavaMethod:
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, JavaMethod):
             return False
+        if self.parent.name != value.parent.name:
+            return False
         if self.name != value.name:
             return False
-        if self.return_type != value.return_type:
-            return False
-        if self.parameters != value.parameters:
-            return False
+        # Compare the parameters types
+        for i in range(len(self.parameters)):
+            if self.parameters[i].type != value.parameters[i].type:
+                return False
         return True
     
     def __hash__(self) -> int:
@@ -153,6 +155,13 @@ class JavaFile:
     def add_classes(self, classes: list) -> None:
         for c in classes:
             self.add_class(c)
+            
+    def get_all_methods(self) -> list:
+        methods = []
+        for c in self.classes:
+            methods.extend(c.methods)
+            
+        return methods
         
     def get_class(self, name) -> JavaClass:
         for c in self.classes:

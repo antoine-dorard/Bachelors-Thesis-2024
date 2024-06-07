@@ -1,4 +1,5 @@
-This is a package retreived from https://github.com/WM-SEMERU/ACER/ and rearanged to fit the purposes of this program. Following is the readme file provided in the ACER repository.
+**This is a Python library from https://github.com/WM-SEMERU/ACER/. The code was directly integrated into this since the library is not uploaded on PyPI. The main method was rearanged to be able to call the program from the script instead of from the command line.**  
+Following is the readme file provided in the ACER repository.
 
 # ACER
 

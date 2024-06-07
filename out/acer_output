@@ -3,5 +3,5 @@
 (unnamed.Main,main,(String[]))->(unnamed.DBManager,getAllUsers,())
 (unnamed.Main,main,(String[]))->(unnamed.Report,generatePDFAndHash,(String,List))
 (unnamed.LoginService,login,(String,String))->(unnamed.HashingUtils,hashSHA256,(String))
-(unnamed.HashingUtils,hashSHA256,(String))->(unnamed.HashingUtils,bytesToHex,(byte[]))
+(unnamed.HashingUtils,hashSHA256,(String))->(unnamed.HashingUtils,bytesToHex,(byte[],byte[][],java.security.MessageDigest))
 (unnamed.DBManager,<init>,(String))->(unnamed.DBManager,loadUsers,(String))

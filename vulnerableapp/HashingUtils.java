@@ -6,14 +6,14 @@ public class HashingUtils {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-1");
             byte[] hashedBytes = md.digest(input.getBytes());
-            return bytesToHex(hashedBytes);
+            return bytesToHex(hashedBytes, null, null);
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    private static String bytesToHex(byte[] bytes) {
+    private static String bytesToHex(byte[] bytes, byte[][] bytes2, java.security.MessageDigest md) {
         StringBuilder hexString = new StringBuilder(2 * bytes.length);
         for (byte b : bytes) {
             String hex = Integer.toHexString(0xff & b);

@@ -1,7 +1,7 @@
 (unnamed.Report,generatePDFAndHash,(String,List))->(unnamed.Report,computeHash,(byte[]))
-(unnamed.Main,main,(String[]))->(unnamed.LoginService,login,(String,String))
 (unnamed.Main,main,(String[]))->(unnamed.DBManager,getAllUsers,())
 (unnamed.Main,main,(String[]))->(unnamed.Report,generatePDFAndHash,(String,List))
+(unnamed.Main,main,(String[]))->(unnamed.LoginService,login,(String,String))
 (unnamed.LoginService,login,(String,String))->(unnamed.HashingUtils,hashSHA256,(String))
 (unnamed.HashingUtils,hashSHA256,(String))->(unnamed.HashingUtils,bytesToHex,(byte[],byte[][],java.security.MessageDigest))
 (unnamed.DBManager,<init>,(String))->(unnamed.DBManager,loadUsers,(String))

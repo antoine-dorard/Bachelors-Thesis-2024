@@ -34,13 +34,19 @@ class JavaParameter:
         
         
 class JavaMethod:
-    def __init__(self, parent, name: str, return_type: str, paremeters: list, position: Position, code: str, summary="") -> None:
+    def __init__(self, parent, name: str, return_type: str, paremeters: list, position: Position, code: str, summary="", is_vulnerable=False) -> None:
         self.name = name
         self.return_type = return_type
         self.position = position
         self.code = code
         self.summary = summary
         self.parent = parent
+        self.parent_cluster = None
+        
+        self.is_vulnerable = is_vulnerable
+        self.vulnerability_metadata: dict = None
+        self.vulnerability: str = None
+        self.matched_string: str = ""
         
         self.parameters = []
         for p in paremeters:
@@ -82,15 +88,16 @@ class JavaMethod:
         return hash((self.name, self.return_type, tuple(self.parameters)))
     
 class JavaClass:
-    def __init__(self, name: str, position: Position, code: str, summary="") -> None:
+    def __init__(self, parent_file, name: str, position: Position, code: str, summary="") -> None:
+        self.parent_file = parent_file
         self.name = name
         self.position = position
         self.code = code
         self.summary = summary
         self.methods = []
         
-    def add_new_method(self, name: str, return_type: str, paremeters: list, position: Position, code: str, summary=""):
-        self.methods.append(JavaMethod(self, name, return_type, paremeters, position, code, summary))
+    def add_new_method(self, name: str, return_type: str, paremeters: list, position: Position, code: str, summary="", is_vulnerable=False):
+        self.methods.append(JavaMethod(self, name, return_type, paremeters, position, code, summary, is_vulnerable=is_vulnerable))
         
     def add_method(self, method: JavaMethod):
         if not isinstance(method, JavaMethod):
@@ -98,7 +105,7 @@ class JavaClass:
         
         self.methods.append(method)
             
-    def add_methods(self, methods: list):
+    def add_methods(self, methods: list[JavaMethod]):
         for m in methods:
             self.add_method(m)
             
@@ -144,7 +151,7 @@ class JavaFile:
                 raise ValueError("The class must be an instance of JavaClass")
         
     def add_new_class(self, name, position) -> None:
-        self.classes.append(JavaClass(name, position))
+        self.classes.append(JavaClass(self, name, position))
         
     def add_class(self, class_: JavaClass) -> None:
         if not isinstance(class_, JavaClass):

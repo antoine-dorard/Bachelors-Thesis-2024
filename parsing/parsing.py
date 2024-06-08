@@ -104,7 +104,7 @@ def extract_classes_and_methods(java_code: str) -> list[JavaClass]:
             code = "\n".join(code) if code else ""
             pos = Position(node.position.line, end_line, node.position.column, end_col)
                 
-            classes.append(JavaClass(node.name, pos, code))
+            classes.append(JavaClass(None, node.name, pos, code))
             
         elif isinstance(node, javalang.tree.MethodDeclaration):
             current_class = class_stack[-1] if class_stack else None

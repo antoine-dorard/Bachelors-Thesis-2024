@@ -69,6 +69,7 @@ def decode_clusterings(pi_star: np.ndarray, all_methods: list[JavaMethod]) -> li
 
     # Assign each JavaMethod to the appropriate Cluster
     for method_idx, cluster_id in enumerate(pi_star):
+        all_methods[method_idx].parent_cluster = clusters[cluster_id]
         clusters[cluster_id].add_element(all_methods[method_idx])
 
     return list(clusters.values())

@@ -7,6 +7,7 @@ from parsing.objects import JavaMethod
 class Cluster():
     def __init__(self, elements: list[JavaMethod]) -> None:
         self.elements: list[JavaMethod] = []
+        self.summary = ""
         
     def add_element(self, element: JavaMethod) -> None:
         self.elements.append(element)

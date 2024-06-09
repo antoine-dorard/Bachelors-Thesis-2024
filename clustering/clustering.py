@@ -24,15 +24,16 @@ class ClusteringInterface(ABC):
         self.graph: nx.Graph = nx.empty_graph()
         self.clusters: list[Cluster] = []
         self.unique_methods: set[JavaMethod] = set()
+        self.params = {}
         
     @abstractmethod
-    def cluster(self, java_files, **kwargs) -> list[Cluster]:
+    def cluster(self, java_files, params) -> list[Cluster]:
         """
         Implement this method with the clustering algorithm of your choice. It must populate the self.clusters and 
         self.unique_methods attributes. 
         parameters: 
         - java_files: list[JavaFile] - a list of JavaFile objects that contain all the parsed code.
-        - **kwargs: additional parameters that can be passed to the clustering algorithm when registering it in the pipeline.
+        - paraps: additional parameters that can be passed to the clustering algorithm when registering it in the pipeline.
         returns: 
         -> self.clusters: list[Cluster] - a list of Cluster objects that contain the methods that are part of the same cluster. 
         Each cluster object must contain instances of JavaMethod.
@@ -44,6 +45,9 @@ class ClusteringInterface(ABC):
     
     def get_unique_methods(self) -> set[JavaMethod]:
         return self.unique_methods
+    
+    def set_params(self, params) -> None:
+        self.params = params
     
         
 def convert_louvain_to_clusters(partition: dict[Union[str, JavaMethod], int]) -> list[Cluster]:

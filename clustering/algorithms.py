@@ -16,7 +16,7 @@ class FanOutLouvainClustering(ClusteringInterface):
     def __init__(self) -> None:
         super().__init__()
         
-    def cluster(self, file_objects_list: list[JavaFile], **kwargs) -> list[Cluster]:
+    def cluster(self, file_objects_list: list[JavaFile], params) -> list[Cluster]:
          # Cluster the files based on the method calls
     
         self.graph = nx.Graph()
@@ -66,20 +66,20 @@ class ACERLouvainClustering(ClusteringInterface):
             print("initializing ACER")
             init_tree_sitter.main()
         
-    def cluster(self, java_files, **kwargs) -> list[Cluster]:
+    def cluster(self, java_files, params) -> list[Cluster]:
         """
         Cluster the files based on the ACER algorithm and Louvain method. 
         """
         
-        if "input_dir" not in kwargs:
+        if "input_dir" not in params:
             raise ValueError("input_dir is required")
         
-        if "output_path" not in kwargs:
+        if "output_path" not in params:
             warn("output_path is not provided. Using default path: out/acer_output")
-            kwargs["output_path"] = "out/acer_output"
+            params["output_path"] = "out/acer_output"
             
         # Run acer
-        res = acer_main(input_dir=kwargs["input_dir"], output_path=kwargs["output_path"], fallback=True, only_variable_identifier=False, from_all=True)
+        res = acer_main(input_dir=params["input_dir"], output_path=params["output_path"], fallback=True, only_variable_identifier=False, from_all=True)
         G = nx.Graph()
         
         for from_, tos in res.items():

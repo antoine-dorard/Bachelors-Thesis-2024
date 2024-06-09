@@ -14,12 +14,18 @@ import tests
 from parsing.objects import JavaFile
 from parsing.parsing import extract_classes_and_methods, is_position_within_method
 from clustering.algorithms import FanOutLouvainClustering, ACERLouvainClustering
-from clustering.clustering import convert_clusters_to_partition
+from clustering.clustering import convert_clusters_to_partition, ClusteringInterface
 from clustering.majority import create_cluster_matrix, decode_clusterings
 from summarizing.summarizing import summarize_code, summarize_cluster
 
 from utils import encode_java_files_to_json, print_clusters, visualize_community_graph
            
+registered_clustering_algorithms: list[ClusteringInterface] = []
+
+def register_clustering_algorithm(clustering_algorithm: ClusteringInterface, params: dict = None):
+    if params is not None:
+        clustering_algorithm.set_params(params)
+    registered_clustering_algorithms.append(clustering_algorithm)
 
 def scan(source_folder):
     scanner = MobSFScan([source_folder], json=True)
@@ -39,6 +45,14 @@ def exec_pipeline(args):
         5. Summarize the clusters
         6. Present each vulnerability with its corresponding method and cluster summary
     """
+    
+    # 0) check if all clustering algorithms are registered
+    if len(registered_clustering_algorithms) == 0:
+        raise Exception("No clustering algorithms are registered. Please register at least one clustering algorithm before executing the pipeline.")
+    
+    for i, clustering_algorithm in enumerate(registered_clustering_algorithms):
+        if not isinstance(clustering_algorithm, ClusteringInterface):
+            raise Exception(f"Clustering algorithm at index {i} is not an instance of ClusteringInterface.")
     
     # 1)
     print(f"[{dt.now().strftime('%T.%f')[:-3]}] Scanning for vulnerabilities...")
@@ -97,18 +111,23 @@ def exec_pipeline(args):
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Clustering Java methods...")
     # cluster_fan_out = cluster(file_objects)
     # cluster_fan_out = {k: v for k, v in sorted(cluster_fan_out.items(), key=lambda item: item[1])}
-    fan_out = FanOutLouvainClustering()
-    fan_out.cluster(file_objects)
+    clustering_success = [False for _ in registered_clustering_algorithms]
     
-    acer_louvain = ACERLouvainClustering()
-    acer_louvain.cluster(file_objects, input_dir=args.dir)
-    
-    print("Fanout Clusters:")
-    print_clusters(fan_out.get_clusters())
-    print()
-    print("ACER Clusters:")
-    print_clusters(acer_louvain.get_clusters())
-    print()
+    for i, clustering_algorithm in enumerate(registered_clustering_algorithms):
+        try:
+            clustering_algorithm.cluster(file_objects, clustering_algorithm.params)
+            clustering_success[i] = True
+        except Exception as e:
+            clustering_success[i] = False
+            print(f"/!\ Clustering algorithm at index {i} failed with exception: {e}")
+            print(f"Excluding it and continuing with the next clustering algorithm...")
+            
+    # print("Fanout Clusters:")
+    # print_clusters(fan_out.get_clusters())
+    # print()
+    # print("ACER Clusters:")
+    # print_clusters(acer_louvain.get_clusters())
+    # print()
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
     # 4)
     # TODO Check for case if only one algo is registered, do not combine
@@ -116,14 +135,45 @@ def exec_pipeline(args):
     # Don't forget to assign parent_cluster to each method if only one clustering approach is used.
     # If consensus is used it is assigning in the decode_clusterings method.
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Combining clustering results...")
-
-    all_methods = list(fan_out.get_unique_methods().intersection(acer_louvain.get_unique_methods()))        
     
-    cluster_matrix = create_cluster_matrix((fan_out.get_clusters(), acer_louvain.get_clusters()), all_methods)
+    all_methods = set()
+    final_clusters = []
     
-    pi_star = iterative_voting_consensus(cluster_matrix, max_value=10) # Non Deterministic: might return less clusters than all approaches even if same number of clusters in each.
+    if not any(clustering_success):
+        raise Exception("All clustering algorithms failed. Cannot continue.")
+    
+    # Only one clustering algorithm succeeded -> use its results
+    if clustering_success.count(True) == 1:
+        print("Only one clustering algorithm succeeded. Skipping consensus.")
+        true_index = clustering_success.index(True)
+        all_methods = set(registered_clustering_algorithms[true_index].get_unique_methods())
+        
+        final_clusters = registered_clustering_algorithms[true_index].get_clusters()
+        
+        all_methods = list(all_methods)
+    
+    # More than one clustering algorithm succeeded -> combine
+    else:
+        print("More than one clustering algorithm succeeded. Combining results...")
+        for clustering in registered_clustering_algorithms:
+            if clustering_success[registered_clustering_algorithms.index(clustering)]:
+                # Combine the clusters of the successful clustering algorithms here
+                all_methods = clustering.get_unique_methods()
+                all_methods = clustering.get_unique_methods().intersection(all_methods)
+                
+        all_methods = list(all_methods)
+                
+        cluster_matrix = create_cluster_matrix([registered_clustering_algorithms[i].get_clusters() for i in range(len(registered_clustering_algorithms)) if clustering_success[i]], all_methods)
+        
+        pi_star = iterative_voting_consensus(cluster_matrix, max_value=10) # Non Deterministic: might return less clusters than all approaches even if same number of clusters in each.
 
-    decoded_clusters = decode_clusterings(pi_star, all_methods)
+        final_clusters = decode_clusterings(pi_star, all_methods)
+        
+    # Assign corresponding parent_cluster to each method
+    for method in all_methods:
+        for cluster in final_clusters:
+            if method in cluster.get_elements():
+                method.parent_cluster = cluster
 
     # for cluster in decoded_clusters:
     #     print(f"Cluster with {len(cluster.get_elements())} methods.")
@@ -134,7 +184,7 @@ def exec_pipeline(args):
     G = nx.Graph()
     for all_method in all_methods:
         G.add_node(all_method)
-    visualize_community_graph(G, convert_clusters_to_partition(decoded_clusters), "out/consensus_graph.png")
+    visualize_community_graph(G, convert_clusters_to_partition(final_clusters), "out/consensus_graph.png")
     
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
     
@@ -144,6 +194,7 @@ def exec_pipeline(args):
     openai_client = OpenAI(api_key=args.api_key)
     
     for vulnerable_method in vulnerable_methods: 
+        print(vulnerable_method.parent.name + "." + vulnerable_method.name)
         vulnerable_method.summary = summarize_code(vulnerable_method.code, openai_client)
         
         if vulnerable_method.parent.summary == "":
@@ -213,6 +264,12 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, required=True, help='Directory to scan')
     parser.add_argument('--api-key', type=str, required=True, help='OpenAI API key')
     args = parser.parse_args()
+    
+    
+    register_clustering_algorithm(FanOutLouvainClustering())
+    register_clustering_algorithm(FanOutLouvainClustering())
+    register_clustering_algorithm(ACERLouvainClustering(), params={"input_dir": args.dir})
+    
     
     exec_pipeline(args)
     

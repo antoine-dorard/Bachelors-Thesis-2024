@@ -2,6 +2,7 @@
 damnvulnerablebank/
 /*.json
 tmp/
+dataset/
 
 # -- ACER --
 ACER/*.pyc

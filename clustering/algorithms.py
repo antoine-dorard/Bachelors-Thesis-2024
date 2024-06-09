@@ -12,7 +12,7 @@ from utils import visualize_community_graph
 from ACER.src.JavaSCHA.SCHA import main as acer_main
 import ACER.init_tree_sitter as init_tree_sitter
 
-class FanOutLouvainClustering(ClusteringInterface):
+class RegexCallLouvainClustering(ClusteringInterface):
     def __init__(self) -> None:
         super().__init__()
         

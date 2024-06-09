@@ -13,9 +13,9 @@ import tests
 
 from parsing.objects import JavaFile
 from parsing.parsing import extract_classes_and_methods, is_position_within_method
-from clustering.algorithms import FanOutLouvainClustering, ACERLouvainClustering
+from clustering.algorithms import RegexCallLouvainClustering, ACERLouvainClustering
 from clustering.clustering import convert_clusters_to_partition, ClusteringInterface
-from clustering.majority import create_cluster_matrix, decode_clusterings
+from clustering.consensus import create_cluster_matrix, decode_clusterings
 from summarizing.summarizing import summarize_code, summarize_cluster
 
 from utils import encode_java_files_to_json, print_clusters, visualize_community_graph
@@ -266,8 +266,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     
-    register_clustering_algorithm(FanOutLouvainClustering())
-    register_clustering_algorithm(FanOutLouvainClustering())
+    register_clustering_algorithm(RegexCallLouvainClustering())
+    register_clustering_algorithm(RegexCallLouvainClustering())
     register_clustering_algorithm(ACERLouvainClustering(), params={"input_dir": args.dir})
     
     

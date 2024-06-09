@@ -7,35 +7,6 @@ from ivc.algorithms import (
 from clustering.clustering import ClusteringInterface, Cluster
 from parsing.objects import JavaMethod
 
-def majority(cluster1: ClusteringInterface, cluster2: ClusteringInterface) -> ClusteringInterface:
-    """
-    Combine the results of two clustering algorithms using a majority voting system.
-    """
-    pass
-
-    
-def check_cluster(groundtruth: np.ndarray, found: np.ndarray) -> float:
-    """Evaluate the percentage of errors between the groundtruth clustering and the found clustering.
-
-    Parameters
-    ----------
-    groundtruth : np.ndarray
-        Groundtruth clustering
-    found : np.ndarray
-        Estimated clustering
-
-    Returns
-    -------
-    float
-        Percentage of error
-    """
-    values = np.unique(groundtruth)
-    errors = 0
-    for value in values:
-        mask = groundtruth == value
-        counts = np.bincount(found[mask])
-        errors += counts.sum() - counts.max()
-    return errors / groundtruth.size
 
 def encode_clusterings(clusters: list[Cluster]) -> dict:
     """
@@ -69,7 +40,7 @@ def decode_clusterings(pi_star: np.ndarray, all_methods: list[JavaMethod]) -> li
 
     # Assign each JavaMethod to the appropriate Cluster
     for method_idx, cluster_id in enumerate(pi_star):
-        all_methods[method_idx].parent_cluster = clusters[cluster_id]
+        #all_methods[method_idx].parent_cluster = clusters[cluster_id]
         clusters[cluster_id].add_element(all_methods[method_idx])
 
     return list(clusters.values())

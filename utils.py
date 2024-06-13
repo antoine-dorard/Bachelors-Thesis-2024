@@ -32,7 +32,6 @@ def encode_java_files_to_json(java_files):
     return jsonpickle.encode(java_files, unpicklable=False)
 
 def visualize_community_graph(graph, partition, output_file_image):
-    print(partition)
     if len(partition) == 0:
         warn("The partition is empty. The graph will not be rendered.")
         return

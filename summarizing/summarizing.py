@@ -1,7 +1,91 @@
 from openai import OpenAI
+import tiktoken
 
 from clustering.clustering import Cluster
 from warnings import warn
+
+model_context = {
+    "gpt-3.5-turbo": {
+        "context": 16385,
+        "max_out": 4096
+    },
+    "gpt-3.5-turbo-0125": {
+        "context": 16385,
+        "max_out": 4096
+    },
+    "gpt-3.5-turbo-0301": {
+        "context": 4097,
+        "max_out": 4097
+    },
+    "gpt-3.5-turbo-0613": {
+        "context": 4097,
+        "max_out": 4097
+    },
+    "gpt-3.5-turbo-1106": {
+        "context": 16385,
+        "max_out": 4096
+    },
+    "gpt-3.5-turbo-16k": {
+        "context": 16385,
+        "max_out": 16385
+    },
+    "gpt-3.5-turbo-16k-0613": {
+        "context": 16385,
+        "max_out": 16385
+    },
+    "gpt-4": {
+        "context": 8192,
+        "max_out": 8192
+    },
+    "gpt-4-0125-preview": {
+        "context": 128000,
+        "max_out": 4096
+    },
+    "gpt-4-0314": {
+        "context": 8192,
+        "max_out": 8192
+    },
+    "gpt-4-0613": {
+        "context": 8192,
+        "max_out": 8192
+    },
+    "gpt-4-1106-preview": {
+        "context": 128000,
+        "max_out": 4096
+    },
+    "gpt-4-1106-vision-preview": {
+        "context": 128000,
+        "max_out": 4096
+    },
+    "gpt-4-32k": {
+        "context": 32768,
+        "max_out": 32768
+    },
+    "gpt-4-32k-0314": {
+        "context": 32768,
+        "max_out": 32768
+    },
+    "gpt-4-32k-0613": {
+        "context": 32768,
+        "max_out": 32768
+    },
+    "gpt-4-turbo-preview": {
+        "context": 128000,
+        "max_out": 4096
+    },
+    "gpt-4-vision-preview": {
+        "context": 128000,
+        "max_out": 4096
+    },
+    "gpt-4o": {
+        "context": 128000,
+        "max_out": None
+    },
+    "gpt-4o-2024-05-13": {
+        "context": 128000,
+        "max_out": None
+    },
+}
 
 def summarize(code, openai_client, model="gpt-3.5-turbo"):
     warn("This function is deprecated. Use summarize_code or summarize_cluster instead.", DeprecationWarning, stacklevel=2)
@@ -67,10 +151,20 @@ Provide a ONE SENTENCE summary of the cluster, keeping in mind that the sentence
     """
     # TODO also try chain of thoughts approach (give one method after the other and then summarize the cluster)
     
+    
     code = ""
     
     for method in cluster.get_elements():
         code += f" ```{method.code}```\n\n"
+    
+    
+    enc = tiktoken.encoding_for_model("gpt-4o")
+    if model_context.get(model) is None:
+        raise ValueError(f"Model {model} is not supported.")
+    
+    if len(enc.encode(code)) > model_context.get(model).get("context"):
+        warn("The code is too long to be summarized by the model. The summary may not be accurate.")
+        return "Cluster too large"
     
     response = openai_client.chat.completions.create(
         model=model,

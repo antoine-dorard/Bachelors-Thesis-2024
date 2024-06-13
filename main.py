@@ -8,6 +8,7 @@ from datetime import datetime as dt
 import argparse
 from ivc.algorithms import iterative_voting_consensus
 import networkx as nx
+import traceback
 
 import tests
 
@@ -54,34 +55,42 @@ def exec_pipeline(args):
         if not isinstance(clustering_algorithm, ClusteringInterface):
             raise Exception(f"Clustering algorithm at index {i} is not an instance of ClusteringInterface.")
     
-    # 1)
-    print(f"[{dt.now().strftime('%T.%f')[:-3]}] Scanning for vulnerabilities...")
-    scan_result = scan(args.dir)
-    
-    with open("out/mobsf_scan.json", "w") as f:
-        f.write(json.dumps(scan_result))
+    # 1) Load report or mobsf scan app
+    scan_result = None
+    if args.mobsf_output is not None:
+        with open(args.mobsf_output, "r") as f:
+            scan_result = json.load(f)
+            
+    else:
+        print(f"[{dt.now().strftime('%T.%f')[:-3]}] Scanning for vulnerabilities...")
+        scan_result = scan(args.dir)
         
-    print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
+        with open("out/mobsf_scan.json", "w") as f:
+            f.write(json.dumps(scan_result))
+            
+        print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
     
     # 2a)
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Parsing Java files...")
     file_objects = []
-    for file in os.listdir(args.dir): # only scans the base directory
-        full_path = os.path.join(args.dir, file)
-        if file.endswith(".java"):
-            
-            with open(full_path, "r") as f:
-                java_code = f.read()
-            
-            current_classes = extract_classes_and_methods(java_code)
-    
-            jfile = JavaFile(full_path, java_code, current_classes)
-            for java_class in current_classes:
-                java_class.parent_file = jfile
-            file_objects.append(jfile)
+    for dirpath, dirnames, filenames in os.walk(args.dir):
+        for file in filenames:
+            if file.endswith(".java"):
+                full_path = os.path.join(dirpath, file)
+                with open(full_path, "r") as f:
+                    java_code = f.read()
+                
+                print(f"Parsing {full_path}")
+                current_classes = extract_classes_and_methods(java_code)
+                jfile = JavaFile(full_path, java_code, current_classes)
+                
+                for java_class in current_classes:
+                    java_class.parent_file = jfile
+                
+                file_objects.append(jfile)
     
     with open("out/parsed_objects.json", "w") as f:
-        f.write(encode_java_files_to_json(file_objects))
+        json.dump(encode_java_files_to_json(file_objects), f)
         
     # 2b) Flag vulnerable methods
     vulnerable_methods = []
@@ -95,7 +104,11 @@ def exec_pipeline(args):
         
                         for java_class in file.classes:
                             for method in java_class.methods:
+                                
                                 if is_position_within_method(vulnerable_file["match_position"], vulnerable_file["match_lines"], method.position):
+                                    label = vulnerable_file.get("label")
+                                    if label is not None:
+                                        method.is_false_positive = label.get("false_positive") 
                                     method.is_vulnerable = True
                                     method.vulnerability = vul_title
                                     method.vulnerability_metadata = vulnerability.get("metadata")
@@ -103,7 +116,8 @@ def exec_pipeline(args):
                                     
                                     vulnerable_file["method"] = method # Indexing the method for later use (will be removed before saving the file)
                                     
-                                    vulnerable_methods.append(method)
+                                    vulnerable_methods.append(method)   
+    
     
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
     
@@ -119,7 +133,8 @@ def exec_pipeline(args):
             clustering_success[i] = True
         except Exception as e:
             clustering_success[i] = False
-            print(f"/!\ Clustering algorithm at index {i} failed with exception: {e}")
+            print(f"/!\ Clustering algorithm at index {i} failed with exception:")
+            print(traceback.format_exc())
             print(f"Excluding it and continuing with the next clustering algorithm...")
             
     # print("Fanout Clusters:")
@@ -146,11 +161,9 @@ def exec_pipeline(args):
     if clustering_success.count(True) == 1:
         print("Only one clustering algorithm succeeded. Skipping consensus.")
         true_index = clustering_success.index(True)
-        all_methods = set(registered_clustering_algorithms[true_index].get_unique_methods())
+        all_methods = list(registered_clustering_algorithms[true_index].get_unique_methods())
         
         final_clusters = registered_clustering_algorithms[true_index].get_clusters()
-        
-        all_methods = list(all_methods)
     
     # More than one clustering algorithm succeeded -> combine
     else:
@@ -162,9 +175,7 @@ def exec_pipeline(args):
                 all_methods = clustering.get_unique_methods().intersection(all_methods)
                 
         all_methods = list(all_methods)
-                
         cluster_matrix = create_cluster_matrix([registered_clustering_algorithms[i].get_clusters() for i in range(len(registered_clustering_algorithms)) if clustering_success[i]], all_methods)
-        
         pi_star = iterative_voting_consensus(cluster_matrix, max_value=10) # Non Deterministic: might return less clusters than all approaches even if same number of clusters in each.
 
         final_clusters = decode_clusterings(pi_star, all_methods)
@@ -173,6 +184,7 @@ def exec_pipeline(args):
     for method in all_methods:
         for cluster in final_clusters:
             if method in cluster.get_elements():
+                print(method.name)
                 method.parent_cluster = cluster
 
     # for cluster in decoded_clusters:
@@ -200,8 +212,10 @@ def exec_pipeline(args):
         if vulnerable_method.parent.summary == "":
             vulnerable_method.parent.summary = summarize_code(vulnerable_method.parent.code, openai_client)
         
-        if vulnerable_method.parent_cluster.summary == "":
+        if vulnerable_method.parent_cluster is not None and vulnerable_method.parent_cluster.summary == "":
             vulnerable_method.parent_cluster.summary = summarize_cluster(vulnerable_method.parent_cluster, openai_client)
+        elif vulnerable_method.parent_cluster is None:
+            print("Parent cluster is None, skipping summarization of parent cluster for this method.")
     
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
     
@@ -212,20 +226,33 @@ def exec_pipeline(args):
             for vulnerable_file in vulnerability["files"]:
                 if "method" in vulnerable_file:
                     
+                    cluster_summary = "Cluster could not be determined for this method."
+                    if vulnerable_file["method"].parent_cluster is not None:
+                        cluster_summary = vulnerable_file["method"].parent_cluster.summary
+                        
+                    
                     vulnerable_file["summaries"] = {}
                     vulnerable_file["summaries"]["method"] = vulnerable_file["method"].summary
                     vulnerable_file["summaries"]["class"] = vulnerable_file["method"].parent.summary
-                    vulnerable_file["summaries"]["cluster"] = vulnerable_file["method"].parent_cluster.summary
+                    vulnerable_file["summaries"]["cluster"] = cluster_summary
                     
                     del vulnerable_file["method"]
                     
     with open("out/mobsf_scan_with_summaries.json", "w") as f:
+        f.write(json.dumps(scan_result))
+        
+    app_name = os.path.basename(os.path.normpath(args.dir))
+    with open(f"experiments/{app_name}_scan_results.json", "w") as f:
         f.write(json.dumps(scan_result))
     
     results = []
     print("===== Result =====")
     print()
     for vulnerable_method in vulnerable_methods:
+        
+        cluster_summary = "Cluster could not be determined for this method."
+        if vulnerable_method.parent_cluster is not None:
+            cluster_summary = vulnerable_method.parent_cluster.summary
         
         current_result = {
             "file": vulnerable_method.parent.parent_file.path,
@@ -236,7 +263,7 @@ def exec_pipeline(args):
             "summaries": {
                 "method": vulnerable_method.summary,
                 "class": vulnerable_method.parent.summary,
-                "cluster": vulnerable_method.parent_cluster.summary
+                "cluster": cluster_summary
             }
         }
         
@@ -249,11 +276,13 @@ def exec_pipeline(args):
         print("Summary")
         print(f"  Method: {vulnerable_method.summary}")
         print(f"  Class: {vulnerable_method.parent.summary}")
-        print(f"  Cluster: {vulnerable_method.parent_cluster.summary}")
+        print(f"  Cluster: {cluster_summary}")
         print()
         
     with open("out/results.json", "w") as f:
         f.write(json.dumps({"results": results}))
+        
+    return file_objects, vulnerable_methods
     
 
 if __name__ == '__main__':
@@ -263,6 +292,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Scan and summarize Java files for vulnerabilities.')
     parser.add_argument('--dir', type=str, required=True, help='Directory to scan')
     parser.add_argument('--api-key', type=str, required=True, help='OpenAI API key')
+    parser.add_argument('--mobsf-output', type=str, required=False, help='OpenAI API key')
     args = parser.parse_args()
     
     
@@ -270,7 +300,7 @@ if __name__ == '__main__':
     register_clustering_algorithm(RegexCallLouvainClustering())
     register_clustering_algorithm(ACERLouvainClustering(), params={"input_dir": args.dir})
     
-    
+
     exec_pipeline(args)
     
     

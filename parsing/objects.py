@@ -43,6 +43,7 @@ class JavaMethod:
         self.parent = parent
         self.parent_cluster = None
         
+        self.is_false_positive = None
         self.is_vulnerable = is_vulnerable
         self.vulnerability_metadata: dict = None
         self.vulnerability: str = None
@@ -77,6 +78,8 @@ class JavaMethod:
         if self.parent.name != value.parent.name:
             return False
         if self.name != value.name:
+            return False
+        if len(self.parameters) != len(value.parameters):
             return False
         # Compare the parameters types
         for i in range(len(self.parameters)):

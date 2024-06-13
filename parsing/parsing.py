@@ -97,7 +97,7 @@ def extract_classes_and_methods(java_code: str) -> list[JavaClass]:
 
     # Traverse the AST and keep track of class contexts
     for path, node in tree:
-        if isinstance(node, javalang.tree.ClassDeclaration):
+        if isinstance(node, javalang.tree.ClassDeclaration) or isinstance(node, javalang.tree.InterfaceDeclaration):
             class_stack.append(node.name)            
             
             code, end_line, end_col = extract_java_methods_body(java_code, node.position.line, node.position.column)
@@ -119,27 +119,28 @@ def extract_classes_and_methods(java_code: str) -> list[JavaClass]:
             #         print("----------------")
             #         print(p.type)
             #         print(get_full_param_reference(p.type))
+              
+            if len(classes) != 0:
+                if current_class == classes[-1].name:
+                    classes[-1].add_new_method(
+                        node.name, 
+                        current_return_type, 
+                        [{"name": param.name, "type": get_full_param_reference(param.type)} for param in node.parameters],
+                        Position(node.position.line, end_line, node.position.column, end_col),
+                        code
+                    )
                     
-            if current_class == classes[-1].name:
-                classes[-1].add_new_method(
-                    node.name, 
-                    current_return_type, 
-                    [{"name": param.name, "type": get_full_param_reference(param.type)} for param in node.parameters],
-                    Position(node.position.line, end_line, node.position.column, end_col),
-                    code
-                )
-                
-            else:
-                for c in classes:
-                    if c.name == current_class:
-                        c.add_new_method(
-                            node.name, 
-                            current_return_type, 
-                            [{"name": param.name, "type": get_full_param_reference(param.type)} for param in node.parameters],
-                            Position(node.position.line, end_line, node.position.column, end_col), 
-                            code
-                        )
-                        break    
+                else:
+                    for c in classes:
+                        if c.name == current_class:
+                            c.add_new_method(
+                                node.name, 
+                                current_return_type, 
+                                [{"name": param.name, "type": get_full_param_reference(param.type)} for param in node.parameters],
+                                Position(node.position.line, end_line, node.position.column, end_col), 
+                                code
+                            )
+                            break    
     return classes
 
 

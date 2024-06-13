@@ -1,7 +1,7 @@
 from parsing.parsing import extract_classes_and_methods, extract_java_methods_body
 
 def test_extract_java_methods(verbose=True):
-    file = "vulnerableapp/DBManager.java.test"
+    file = "dataset/vulnerableapp/DBManager.java.test"
     
     with open(file, 'r') as f:
         java_code = f.read()

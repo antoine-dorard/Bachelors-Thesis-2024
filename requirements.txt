@@ -9,9 +9,13 @@ javalang==0.13.0
 jsonpickle==3.0.4
 iterative-voting-consensus==0.1.2
 
+# Required by ACER
 tree-sitter == 0.21.3
 pandas >= 1.3.3
 GitPython==3.1.43
 deepdiff >=6.2.1
 setuptools==65.5.0
 tqdm==4.66.4
+
+# Experiments
+scikit-learn==1.5.0

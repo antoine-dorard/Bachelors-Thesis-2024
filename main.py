@@ -93,7 +93,7 @@ def exec_pipeline(args):
         json.dump(encode_java_files_to_json(file_objects), f)
         
     # 2b) Flag vulnerable methods
-    vulnerable_methods = []
+    vulnerable_methods = {}
     
     for file in file_objects:
         for vul_title, vulnerability in scan_result["results"].items():
@@ -116,7 +116,7 @@ def exec_pipeline(args):
                                     
                                     vulnerable_file["method"] = method # Indexing the method for later use (will be removed before saving the file)
                                     
-                                    vulnerable_methods.append(method)   
+                                    vulnerable_methods[method.__hash__()] = method   
     
     
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
@@ -205,7 +205,7 @@ def exec_pipeline(args):
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Summarizing vulnerable methods...")
     openai_client = OpenAI(api_key=args.api_key)
     
-    for vulnerable_method in vulnerable_methods: 
+    for vulnerable_method in vulnerable_methods.values(): 
         print(vulnerable_method.parent.name + "." + vulnerable_method.name)
         vulnerable_method.summary = summarize_code(vulnerable_method.code, openai_client)
         
@@ -229,12 +229,13 @@ def exec_pipeline(args):
                     cluster_summary = "Cluster could not be determined for this method."
                     if vulnerable_file["method"].parent_cluster is not None:
                         cluster_summary = vulnerable_file["method"].parent_cluster.summary
-                        
-                    
+
                     vulnerable_file["summaries"] = {}
                     vulnerable_file["summaries"]["method"] = vulnerable_file["method"].summary
                     vulnerable_file["summaries"]["class"] = vulnerable_file["method"].parent.summary
                     vulnerable_file["summaries"]["cluster"] = cluster_summary
+                    
+                    vulnerable_file["method_hash"] = vulnerable_file["method"].__hash__() # Used in experiments to lookup for the method object from the scan_results json file
                     
                     del vulnerable_file["method"]
                     
@@ -242,13 +243,13 @@ def exec_pipeline(args):
         f.write(json.dumps(scan_result))
         
     app_name = os.path.basename(os.path.normpath(args.dir))
-    with open(f"experiments/{app_name}_scan_results.json", "w") as f:
+    with open(f"experiments/{app_name}_scan_results_processed.json", "w") as f:
         f.write(json.dumps(scan_result))
     
     results = []
     print("===== Result =====")
     print()
-    for vulnerable_method in vulnerable_methods:
+    for vulnerable_method in vulnerable_methods.values():
         
         cluster_summary = "Cluster could not be determined for this method."
         if vulnerable_method.parent_cluster is not None:

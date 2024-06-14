@@ -114,9 +114,16 @@ def exec_pipeline(args):
                                     method.vulnerability_metadata = vulnerability.get("metadata")
                                     method.match_string = vulnerable_file["match_string"]
                                     
-                                    vulnerable_file["method"] = method # Indexing the method for later use (will be removed before saving the file)
-                                    
                                     vulnerable_methods[method.__hash__()] = method   
+                                    
+                                    if args.summarize is not True and vulnerable_file.get("summaries") is not None:
+                                        summaries = vulnerable_file["summaries"]
+                                        method.summary = summaries["method"]
+                                        method.parent.summary = summaries["class"]
+                                
+                                        method.cluster_summary = summaries["cluster"] # Don't have attribute parent_cluster yet, so we store it here for now.
+                                        
+                                    vulnerable_file["method"] = method # Indexing the method for later use (will be removed before saving the file)
     
     
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
@@ -184,7 +191,6 @@ def exec_pipeline(args):
     for method in all_methods:
         for cluster in final_clusters:
             if method in cluster.get_elements():
-                print(method.name)
                 method.parent_cluster = cluster
 
     # for cluster in decoded_clusters:
@@ -202,22 +208,23 @@ def exec_pipeline(args):
     
     # 5)
     
-    print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Summarizing vulnerable methods...")
-    openai_client = OpenAI(api_key=args.api_key)
-    
-    for vulnerable_method in vulnerable_methods.values(): 
-        print(vulnerable_method.parent.name + "." + vulnerable_method.name)
-        vulnerable_method.summary = summarize_code(vulnerable_method.code, openai_client)
+    if args.summarize is True:
+        print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Summarizing vulnerable methods...")
+        openai_client = OpenAI(api_key=args.api_key)
         
-        if vulnerable_method.parent.summary == "":
-            vulnerable_method.parent.summary = summarize_code(vulnerable_method.parent.code, openai_client)
+        for vulnerable_method in vulnerable_methods.values(): 
+            print(vulnerable_method.parent.name + "." + vulnerable_method.name)
+            vulnerable_method.summary = summarize_code(vulnerable_method.code, openai_client)
+            
+            if vulnerable_method.parent.summary == "":
+                vulnerable_method.parent.summary = summarize_code(vulnerable_method.parent.code, openai_client)
+            
+            if vulnerable_method.parent_cluster is not None and vulnerable_method.parent_cluster.summary == "":
+                vulnerable_method.parent_cluster.summary = summarize_cluster(vulnerable_method.parent_cluster, openai_client)
+            elif vulnerable_method.parent_cluster is None:
+                print("Parent cluster is None, skipping summarization of parent cluster for this method.")
         
-        if vulnerable_method.parent_cluster is not None and vulnerable_method.parent_cluster.summary == "":
-            vulnerable_method.parent_cluster.summary = summarize_cluster(vulnerable_method.parent_cluster, openai_client)
-        elif vulnerable_method.parent_cluster is None:
-            print("Parent cluster is None, skipping summarization of parent cluster for this method.")
-    
-    print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
+        print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
     
     # 6) 
     # Add the results to the MobSF scan result 
@@ -226,14 +233,18 @@ def exec_pipeline(args):
             for vulnerable_file in vulnerability["files"]:
                 if "method" in vulnerable_file:
                     
-                    cluster_summary = "Cluster could not be determined for this method."
-                    if vulnerable_file["method"].parent_cluster is not None:
-                        cluster_summary = vulnerable_file["method"].parent_cluster.summary
+                    if args.summarize is True:
+                        cluster_summary = "Cluster could not be determined for this method."
+                        if vulnerable_file["method"].parent_cluster is not None:
+                            cluster_summary = vulnerable_file["method"].parent_cluster.summary # Assign the cluster summary to the parent cluster object
 
-                    vulnerable_file["summaries"] = {}
-                    vulnerable_file["summaries"]["method"] = vulnerable_file["method"].summary
-                    vulnerable_file["summaries"]["class"] = vulnerable_file["method"].parent.summary
-                    vulnerable_file["summaries"]["cluster"] = cluster_summary
+                        vulnerable_file["summaries"] = {}
+                        vulnerable_file["summaries"]["method"] = vulnerable_file["method"].summary
+                        vulnerable_file["summaries"]["class"] = vulnerable_file["method"].parent.summary
+                        vulnerable_file["summaries"]["cluster"] = cluster_summary
+                    else:
+                        if vulnerable_file["method"].parent_cluster is not None:
+                            vulnerable_file["method"].parent_cluster.summary = vulnerable_file["summaries"]["cluster"]
                     
                     vulnerable_file["method_hash"] = vulnerable_file["method"].__hash__() # Used in experiments to lookup for the method object from the scan_results json file
                     
@@ -243,7 +254,7 @@ def exec_pipeline(args):
         f.write(json.dumps(scan_result))
         
     app_name = os.path.basename(os.path.normpath(args.dir))
-    with open(f"experiments/{app_name}_scan_results_processed.json", "w") as f:
+    with open(f"experiments/json/{app_name}_scan_results_processed.json", "w") as f:
         f.write(json.dumps(scan_result))
     
     results = []
@@ -294,6 +305,8 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, required=True, help='Directory to scan')
     parser.add_argument('--api-key', type=str, required=True, help='OpenAI API key')
     parser.add_argument('--mobsf-output', type=str, required=False, help='OpenAI API key')
+    parser.add_argument('--summarize', type=str, required=False, help='OpenAI API key', default=True)
+    
     args = parser.parse_args()
     
     

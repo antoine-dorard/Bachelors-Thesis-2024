@@ -40,6 +40,7 @@ class JavaMethod:
         self.position = position
         self.code = code
         self.summary = summary
+        self.cluster_summary = ""
         self.parent = parent
         self.parent_cluster = None
         

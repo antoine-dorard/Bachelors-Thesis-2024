@@ -1,7 +1,7 @@
 vulnerability,file_path,description,label
-android_hidden_ui,dataset/diva-android/app/src/main/java/jakhar/aseem/diva/AccessControl3NotesActivity.java,Hidden elements in view can be used to hide data from user. But this data can be leaked.,0
 android_hidden_ui,dataset/diva-android/app/src/main/java/jakhar/aseem/diva/AccessControl3NotesActivity.java,Hidden elements in view can be used to hide data from user. But this data can be leaked.,1
-android_logging,dataset/diva-android/app/src/main/java/jakhar/aseem/diva/InsecureDataStorage2Activity.java,The App logs information. Please ensure that sensitive information is never logged.,0
+android_hidden_ui,dataset/diva-android/app/src/main/java/jakhar/aseem/diva/AccessControl3NotesActivity.java,Hidden elements in view can be used to hide data from user. But this data can be leaked.,1
+android_logging,dataset/diva-android/app/src/main/java/jakhar/aseem/diva/InsecureDataStorage2Activity.java,The App logs information. Please ensure that sensitive information is never logged.,1
 android_logging,dataset/diva-android/app/src/main/java/jakhar/aseem/diva/InsecureDataStorage2Activity.java,The App logs information. Please ensure that sensitive information is never logged.,1
 android_logging,dataset/diva-android/app/src/main/java/jakhar/aseem/diva/InsecureDataStorage3Activity.java,The App logs information. Please ensure that sensitive information is never logged.,0
 android_logging,dataset/diva-android/app/src/main/java/jakhar/aseem/diva/InsecureDataStorage4Activity.java,The App logs information. Please ensure that sensitive information is never logged.,0

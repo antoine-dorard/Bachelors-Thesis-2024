@@ -19,6 +19,8 @@ def parse_method_calls_REGEX(method_body) -> list[str]:
 
 def parse_method_calls_LLM(method_body, openai_client, model="gpt-3.5-turbo"):
     """
+    DEPRECATED - This function was replaced by parse_method_calls_REGEX. Using LLMs to parse method calls is unreliable.
+    
     This function uses the OpenAI language model to parse method calls from a Java method body. 
     It sends each line of the method body to the model and extracts the method calls from the response.
     However this is rather inefficient and unreliable, as the model may not always return the correct method calls.
@@ -114,11 +116,6 @@ def extract_classes_and_methods(java_code: str) -> list[JavaClass]:
             current_return_type = "void"
             if node.return_type:
                 current_return_type = node.return_type.name
-            
-            # for p in node.parameters:
-            #         print("----------------")
-            #         print(p.type)
-            #         print(get_full_param_reference(p.type))
               
             if len(classes) != 0:
                 if current_class == classes[-1].name:
@@ -144,16 +141,16 @@ def extract_classes_and_methods(java_code: str) -> list[JavaClass]:
     return classes
 
 
-def extract_java_methods_body(lines, start_line, start_col):
+def extract_java_methods_body(lines: list[str], start_line: int, start_col: int):
     """
-    Extracts the body of a Java method from the source code lines.
+    Extracts the body of a Java method given its location and the source code.
 
     This function finds and extracts the complete body of a Java method starting from the specified line and column.
     It correctly handles nested curly braces to ensure only the code within the method is included. The extraction
     process stops once the braces are balanced, indicating the end of the method body.
 
-    Args:
-    lines (list of str): The lines of source code.
+    Parameters:
+    lines (list[str]): The lines of source code.
     start_line (int): The line number where the method signature starts.
     start_col (int): The column number where the method signature starts, which is be right before the method's
                      return type.

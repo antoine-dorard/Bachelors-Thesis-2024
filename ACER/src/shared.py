@@ -191,7 +191,6 @@ import re
 
 def get_files(from_directory: str, include_pat: re.Pattern[str]) -> List[str]:
     file_list: List[str] = []
-    print(from_directory)
     # Compile the regex pattern
 
     # Walk through the directory

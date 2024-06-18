@@ -193,8 +193,3 @@ class JavaFile:
     
     def __str__(self) -> str:
         return "{" + f"Path: {self.path}, Classes: {self.classes}" + "}"
-
-    
-# TODO create interface for clustering and  for cluster. The clustering class should return an instance of the cluster class.
-# It should contain all getters (and setters) so that the person who implements the interface knows what to return.
-# Path: clustering.py

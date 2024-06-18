@@ -10,7 +10,7 @@ from parsing.objects import JavaMethod
 
 def encode_clusterings(clusters: list[Cluster]) -> dict:
     """
-    Converts the clsuters list to a dictionary of method -> cluster_id
+    Converts the clusters list to a dictionary of method -> cluster_id
     """
     encoding = {}
     cluster_id = 0
@@ -33,14 +33,24 @@ def create_cluster_matrix(clustering_results: list[list[Cluster]], all_methods: 
 
 
 def decode_clusterings(pi_star: np.ndarray, all_methods: list[JavaMethod]) -> list[Cluster]:
+    """
+    Takes the output of a consensus algorithm and decodes it into a list of Cluster objects.
+    
+    Parameters:
+    pi_star: (np.ndarray): a 1D array of cluster IDs
+    all_methods: (list[JavaMethod]): a list of all JavaMethod objects
+    
+    Returns:
+    list[Cluster]: a list of Cluster objects
+    """
     clusters = {}  # Maps cluster IDs to Cluster objects
+    
     # Initialize Cluster objects for each unique cluster ID
     for cluster_id in np.unique(pi_star):
         clusters[cluster_id] = Cluster([])
 
     # Assign each JavaMethod to the appropriate Cluster
     for method_idx, cluster_id in enumerate(pi_star):
-        #all_methods[method_idx].parent_cluster = clusters[cluster_id]
         clusters[cluster_id].add_element(all_methods[method_idx])
 
     return list(clusters.values())

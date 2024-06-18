@@ -13,11 +13,17 @@ from ACER.src.JavaSCHA.SCHA import main as acer_main
 import ACER.init_tree_sitter as init_tree_sitter
 
 class RegexCallLouvainClustering(ClusteringInterface):
+    """
+    A clustering implementation that uses the Louvain method for community detection
+    based on method call relationships in Java files.
+    """
     def __init__(self) -> None:
         super().__init__()
         
     def cluster(self, file_objects_list: list[JavaFile], params) -> list[Cluster]:
-         # Cluster the files based on the method calls
+        """
+        Cluster the files based on the method calls using the Louvain method.=
+        """
     
         self.graph = nx.Graph()
         
@@ -59,6 +65,9 @@ class RegexCallLouvainClustering(ClusteringInterface):
     
     
 class ACERLouvainClustering(ClusteringInterface):
+    """
+    Clustering method based on the ACER algorithm and the Louvain method.
+    """
     def __init__(self) -> None:
         super().__init__()
         
@@ -69,6 +78,9 @@ class ACERLouvainClustering(ClusteringInterface):
     def cluster(self, java_files, params) -> list[Cluster]:
         """
         Cluster the files based on the ACER algorithm and Louvain method. 
+        This method runs the ACER algorithm on the provided Java files to create a call graph and then
+        applies the Louvain method to detect communities (clusters) within the 
+        results.
         """
         
         if "input_dir" not in params:
@@ -132,7 +144,8 @@ class ACERLouvainClustering(ClusteringInterface):
     @staticmethod
     def compare_parameters(object_parameters: list, acer_parameters: list):
         """
-        compare two list of parameters
+        Helper method for ACERLouvainClustering.get_java_method_from_signature
+        Compare two list of parameters from different formats
         """
         if len(object_parameters) != len(acer_parameters):
             return False

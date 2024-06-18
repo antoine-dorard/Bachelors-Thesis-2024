@@ -88,6 +88,9 @@ model_context = {
 }
 
 def summarize(code, openai_client, model="gpt-3.5-turbo"):
+    """
+    DEPRECATED - Old prompt for summarizing Java code. Use summarize_code or summarize_cluster instead.
+    """
     warn("This function is deprecated. Use summarize_code or summarize_cluster instead.", DeprecationWarning, stacklevel=2)
     system_message = """
 You are a professional Java code interpreter. Your role is to summarize code while strictly following the two following main rules:
@@ -149,8 +152,6 @@ Keep the following rules in mind:
 
 Provide a ONE SENTENCE summary of the cluster, keeping in mind that the sentence must tell the reader what the provided group of methods do.
     """
-    # TODO also try chain of thoughts approach (give one method after the other and then summarize the cluster)
-    
     
     code = ""
     

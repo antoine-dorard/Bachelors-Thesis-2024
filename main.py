@@ -9,6 +9,7 @@ import argparse
 from ivc.algorithms import iterative_voting_consensus
 import networkx as nx
 import traceback
+from tqdm import tqdm
 
 import tests
 
@@ -23,12 +24,18 @@ from utils import encode_java_files_to_json, print_clusters, visualize_community
            
 registered_clustering_algorithms: list[ClusteringInterface] = []
 
-def register_clustering_algorithm(clustering_algorithm: ClusteringInterface, params: dict = None):
+def register_clustering_algorithm(clustering_algorithm: ClusteringInterface, params: dict = None) -> None:
+    """
+    Register a clustering algorithm to be used in the pipeline.
+    """
     if params is not None:
         clustering_algorithm.set_params(params)
     registered_clustering_algorithms.append(clustering_algorithm)
 
-def scan(source_folder):
+def scan(source_folder: str) -> dict:
+    """
+    Scan the application directory for vulnerabilities using MobSF.
+    """
     scanner = MobSFScan([source_folder], json=True)
     return scanner.scan()
     
@@ -36,15 +43,18 @@ def scan(source_folder):
 def exec_pipeline(args):
     """
     This is the pipeline function. It is responsible for executing the entire process of scanning, parsing, clustering, and summarizing the Java files.
-    This method should be called be the lib user after all desired clustering algorithms are implemented, LLM's settings are set.
+    This method should be called by the user after all desired clustering algorithms are implemented and registered wih the function register_clustering_algorithm.
     
     The pipeline consists of the following steps:
-        1. Scan the directory for vulnerabilities
+        1. Scan the directory for vulnerabilities using MobSF
         2. Parse the Java files
         3. Cluster the files based on the method calls
         4. Combine results of 3 if multiple clustering algorithms are used
         5. Summarize the clusters
         6. Present each vulnerability with its corresponding method and cluster summary
+        
+    Parameters:
+    args (argparse.Namespace): The arguments passed to the pipeline from the terminal: --dir, --api-key, --mobsf-output, --summarize, --debug
     """
     
     # 0) check if all clustering algorithms are registered
@@ -79,8 +89,7 @@ def exec_pipeline(args):
                 full_path = os.path.join(dirpath, file)
                 with open(full_path, "r") as f:
                     java_code = f.read()
-                
-                print(f"Parsing {full_path}")
+
                 current_classes = extract_classes_and_methods(java_code)
                 jfile = JavaFile(full_path, java_code, current_classes)
                 
@@ -88,9 +97,6 @@ def exec_pipeline(args):
                     java_class.parent_file = jfile
                 
                 file_objects.append(jfile)
-    
-    with open("out/parsed_objects.json", "w") as f:
-        json.dump(encode_java_files_to_json(file_objects), f)
         
     # 2b) Flag vulnerable methods
     vulnerable_methods = {}
@@ -129,9 +135,9 @@ def exec_pipeline(args):
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
     
     # 3)
+    
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Clustering Java methods...")
-    # cluster_fan_out = cluster(file_objects)
-    # cluster_fan_out = {k: v for k, v in sorted(cluster_fan_out.items(), key=lambda item: item[1])}
+    
     clustering_success = [False for _ in registered_clustering_algorithms]
     
     for i, clustering_algorithm in enumerate(registered_clustering_algorithms):
@@ -141,21 +147,17 @@ def exec_pipeline(args):
         except Exception as e:
             clustering_success[i] = False
             print(f"/!\ Clustering algorithm at index {i} failed with exception:")
-            print(traceback.format_exc())
+            if args.debug:
+                print(traceback.format_exc())
+            else:
+                print(e)
             print(f"Excluding it and continuing with the next clustering algorithm...")
             
-    # print("Fanout Clusters:")
-    # print_clusters(fan_out.get_clusters())
-    # print()
-    # print("ACER Clusters:")
-    # print_clusters(acer_louvain.get_clusters())
-    # print()
+
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Done.")
+    
     # 4)
-    # TODO Check for case if only one algo is registered, do not combine
-    # TODO let the option to choose which algo to use for the consensus
-    # Don't forget to assign parent_cluster to each method if only one clustering approach is used.
-    # If consensus is used it is assigning in the decode_clusterings method.
+    
     print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Combining clustering results...")
     
     all_methods = set()
@@ -192,11 +194,6 @@ def exec_pipeline(args):
         for cluster in final_clusters:
             if method in cluster.get_elements():
                 method.parent_cluster = cluster
-
-    # for cluster in decoded_clusters:
-    #     print(f"Cluster with {len(cluster.get_elements())} methods.")
-    #     for method in cluster.get_elements():
-    #         print(method)
     
     # Visualize the consensus graph
     G = nx.Graph()
@@ -212,8 +209,7 @@ def exec_pipeline(args):
         print(f"[{dt.now().strftime('%H:%M:%S.%f')[:-3]}] Summarizing vulnerable methods...")
         openai_client = OpenAI(api_key=args.api_key)
         
-        for vulnerable_method in vulnerable_methods.values(): 
-            print(vulnerable_method.parent.name + "." + vulnerable_method.name)
+        for vulnerable_method in tqdm(vulnerable_methods.values()): 
             vulnerable_method.summary = summarize_code(vulnerable_method.code, openai_client)
             
             if vulnerable_method.parent.summary == "":
@@ -298,6 +294,16 @@ def exec_pipeline(args):
     
 
 if __name__ == '__main__':
+    """
+    Pipeline entry point if run from the terminal.
+    
+    Terminal arguments:
+    --dir (Required): Directory to scan
+    --api-key (Required): OpenAI API key
+    --mobsf-output (Optional): Path to the MobSF scan output file if it has already been run.
+    --summarize (Optional): Whether to summarize the methods or not. Default is True.
+    --debug (Optional): Whether to print full stack traces or not during runtime. Default is False.
+    """
     openai._utils._logs.logger.setLevel(logging.WARNING)
     openai._utils._logs.httpx_logger.setLevel(logging.WARNING)
     
@@ -306,17 +312,18 @@ if __name__ == '__main__':
     parser.add_argument('--api-key', type=str, required=True, help='OpenAI API key')
     parser.add_argument('--mobsf-output', type=str, required=False, help='OpenAI API key')
     parser.add_argument('--summarize', type=str, required=False, help='OpenAI API key', default=True)
+    parser.add_argument('--debug', type=str, required=False, help='OpenAI API key', default=False)
     
     args = parser.parse_args()
     
-    
+    # Register clustering algorithms here before executing the pipeline
     register_clustering_algorithm(RegexCallLouvainClustering())
     register_clustering_algorithm(RegexCallLouvainClustering())
     register_clustering_algorithm(ACERLouvainClustering(), params={"input_dir": args.dir})
     
-
+    # Execute the pipeline
     exec_pipeline(args)
     
-    
+    # Some tests are performed on the parser
     tests.test_all()
     

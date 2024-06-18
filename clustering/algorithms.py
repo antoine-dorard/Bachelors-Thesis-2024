@@ -152,7 +152,7 @@ class ACERLouvainClustering(ClusteringInterface):
         
         parameters1 = [param.type for param in object_parameters]
         acer_types = [param.strip().split(' ')[0] for param in acer_parameters]
-        acer_types = [re.search(r'^[^<\[\(\?&{]*', param).group(0) for param in acer_types] # remove generics, arrays, and others from the type (TODO improve this)
+        acer_types = [re.search(r'^[^<\[\(\?&{]*', param).group(0) for param in acer_types] # remove generics, arrays, and others from the type
         for i in range(len(parameters1)):
             if parameters1[i] != acer_types[i]:
                 return False

@@ -81,7 +81,6 @@ def is_position_within_method(mobsf_position, mobsf_lines, method):
             if method.start_line == mobsf_lines[0] and method.start_col <= mobsf_position[0]:
                 return True
     return False
-    # TODO Check if the position is within the method. Use this function to summarize only methods that contain vulnerabilities - Make tests
 
 
 def extract_classes_and_methods(java_code: str) -> list[JavaClass]:

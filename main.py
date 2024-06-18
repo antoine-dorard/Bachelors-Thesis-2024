@@ -151,6 +151,7 @@ def exec_pipeline(args):
                 print(traceback.format_exc())
             else:
                 print(e)
+                print("Run with '--debug True' to see full stack trace.")
             print(f"Excluding it and continuing with the next clustering algorithm...")
             
 
